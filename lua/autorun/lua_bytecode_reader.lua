@@ -69,7 +69,7 @@ end
 
 local function disassemble_function(fn)
 	local upvalues = {}
-	n = 0
+	local n = 0
 	local upvalue = jit.util.funcuvname(fn, n)
 
 	while (upvalue ~= nil) do
@@ -141,11 +141,60 @@ local function disassemble_function(fn)
 	return ret
 end
 
+
+local function hasJITInstruction(fn)
+	local countBC = jit.util.funcinfo(fn).bytecodes
+	local n = 1
+	while (n < countBC) do
+		local ins = bit.band( jit.util.funcbc(fn, n), 0xFF)
+		if JIT_INST[ins] then
+			return true
+		end
+		n = n + 1
+	end
+
+	return false
+end
+
+
+local function JITLevel(fn)
+	local instructions = 0
+	local countBC = jit.util.funcinfo(fn).bytecodes
+	local n = 1
+	while (n < countBC) do
+		local ins = bit.band( jit.util.funcbc(fn, n), 0xFF)
+		if JIT_INST[ins] then
+			instructions = instructions + 1
+		end
+		n = n + 1
+	end
+
+	return instructions
+
+
+end
+
+
 local a = debug.getmetatable(disassemble_function) or {}
 a.__index = a.__index or a -- assuming __index is not a function
 local meta = a.__index -- when doing func.disassemble it's calling __index
-debug.setmetatable(disassemble_function, a)
 
+
+
+debug.setmetatable(disassemble_function, a)
 function meta.disassemble(fn)
 	return disassemble_function(fn)
+end
+
+debug.setmetatable(hasJITInstruction, a)
+
+function meta.isJITed(fn)
+	return hasJITInstruction(fn)
+end
+
+
+debug.setmetatable(JITLevel, a)
+
+function meta.getJITLevel(fn)
+	return JITLevel(fn)
 end
