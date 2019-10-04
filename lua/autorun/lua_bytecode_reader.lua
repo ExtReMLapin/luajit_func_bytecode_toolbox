@@ -20,9 +20,6 @@ for k, v in ipairs(OPNAMES) do
 	INST[v] = k
 end
 
-
-print(INST.FUNCC, "lol")
-
 local JIT_INST = {
 	[INST.JFORI] = true,
 	[INST.JFORL] = true,
@@ -44,8 +41,6 @@ local functions_headers = {
 	--[INST.FUNC] = true
 }
 
-
-print(#OPNAMES)
 
 local ref_table_set_vars = {
 	GGET = function(instruction, consts, upvalues)
