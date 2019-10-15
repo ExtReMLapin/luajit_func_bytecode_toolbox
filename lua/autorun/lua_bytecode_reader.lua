@@ -1,14 +1,21 @@
 local tmp_documentation = {{op="ISLT",d="var",a="var",description="Jump if A < D",},{op="ISGE",d="var",a="var",description="Jump if A ≥ D",},{op="ISLE",d="var",a="var",description="Jump if A ≤ D",},{op="ISGT",d="var",a="var",description="Jump if A > D",},{op="ISEQV",d="var",a="var",description="Jump if A = D",},{op="ISNEV",d="var",a="var",description="Jump if A ≠ D",},{op="ISEQS",d="str",a="var",description="Jump if A = D",},{op="ISNES",d="str",a="var",description="Jump if A ≠ D",},{op="ISEQN",d="num",a="var",description="Jump if A = D",},{op="ISNEN",d="num",a="var",description="Jump if A ≠ D",},{op="ISEQP",d="pri",a="var",description="Jump if A = D",},{op="ISNEP",d="pri",a="var",description="Jump if A ≠ D",},{op="ISTC",d="var",a="dst",description="Copy D to A and jump",},{op="ISFC",d="var",a="dst",description="Copy D to A and jump",},{op="IST",d="var",a=" ",description="Jump if D is true",},{op="ISF",d="var",a=" ",description="Jump if D is false",},{op="MOV",d="var",a="dst",description="Copy D to A",},{op="NOT",d="var",a="dst",description="Set A to boolean not of D",},{op="UNM",d="var",a="dst",description="Set A to -D (unary minus)",},{op="LEN",d="var",a="dst",description="Set A to #D (object length)",},{op="ADDVN",a="dst",b="var",c="num",description="A = B + C",},{op="SUBVN",a="dst",b="var",c="num",description="A = B - C",},{op="MULVN",a="dst",b="var",c="num",description="A = B * C",},{op="DIVVN",a="dst",b="var",c="num",description="A = B / C",},{op="MODVN",a="dst",b="var",c="num",description="A = B % C",},{op="ADDNV",a="dst",b="var",c="num",description="A = C + B",},{op="SUBNV",a="dst",b="var",c="num",description="A = C - B",},{op="MULNV",a="dst",b="var",c="num",description="A = C * B",},{op="DIVNV",a="dst",b="var",c="num",description="A = C / B",},{op="MODNV",a="dst",b="var",c="num",description="A = C % B",},{op="ADDVV",a="dst",b="var",c="var",description="A = B + C",},{op="SUBVV",a="dst",b="var",c="var",description="A = B - C",},{op="MULVV",a="dst",b="var",c="var",description="A = B * C",},{op="DIVVV",a="dst",b="var",c="var",description="A = B / C",},{op="MODVV",a="dst",b="var",c="var",description="A = B % C",},{op="POW",a="dst",b="var",c="var",description="A = B ^ C",},{op="CAT",a="dst",b="rbase",c="rbase",description="A = B .. ~ .. C",},{op="KSTR",d="str",a="dst",description="Set A to string constant D",},{op="KCDATA",d="cdata",a="dst",description="Set A to cdata constant D",},{op="KSHORT",d="lits",a="dst",description="Set A to 16 bit signed integer D",},{op="KNUM",d="num",a="dst",description="Set A to number constant D",},{op="KPRI",d="pri",a="dst",description="Set A to primitive D",},{op="KNIL",d="base",a="base",description="Set slots A to D to nil",},{op="UGET",d="uv",a="dst",description="Set A to upvalue D",},{op="USETV",d="var",a="uv",description="Set upvalue A to D",},{op="USETS",d="str",a="uv",description="Set upvalue A to string constant D",},{op="USETN",d="num",a="uv",description="Set upvalue A to number constant D",},{op="USETP",d="pri",a="uv",description="Set upvalue A to primitive D",},{op="UCLO",d="jump",a="rbase",description="Close upvalues for slots ≥ rbase and jump to target D",},{op="FNEW",d="func",a="dst",description="Create new closure from prototype D and store it in A",},{op="TNEW",b="",["c/d"]="lit",a="dst",description="Set A to new table with size D (see below)",},{op="TDUP",b="",["c/d"]="tab",a="dst",description="Set A to duplicated template table D",},{op="GGET",b="",["c/d"]="str",a="dst",description="A = _G[D]",},{op="GSET",b="",["c/d"]="str",a="var",description="_G[D] = A",},{op="TGETV",b="var",["c/d"]="var",a="dst",description="A = B[C]",},{op="TGETS",b="var",["c/d"]="str",a="dst",description="A = B[C]",},{op="TGETB",b="var",["c/d"]="lit",a="dst",description="A = B[C]",},{op="TSETV",b="var",["c/d"]="var",a="var",description="B[C] = A",},{op="TSETS",b="var",["c/d"]="str",a="var",description="B[C] = A",},{op="TSETB",b="var",["c/d"]="lit",a="var",description="B[C] = A",},{op="TSETM",b="",["c/d"]="num*",a="base",description="(A-1)[D]",},{op="CALLM",b="lit",["c/d"]="lit",a="base",description="Call: A",},{op="CALL",b="lit",["c/d"]="lit",a="base",description="Call: A",},{op="CALLMT",b="",["c/d"]="lit",a="base",description="Tailcall: return A(A+1",},{op="CALLT",b="",["c/d"]="lit",a="base",description="Tailcall: return A(A+1",},{op="ITERC",b="lit",["c/d"]="lit",a="base",description="Call iterator: A",},{op="ITERN",b="lit",["c/d"]="lit",a="base",description="Specialized ITERC",},{op="VARG",b="lit",["c/d"]="lit",a="base",description="Vararg: A",},{op="ISNEXT",b="",["c/d"]="jump",a="base",description="Verify ITERN specialization and jump",},{op="RETM",d="lit",a="base",description="return A",},{op="RET",d="lit",a="rbase",description="return A",},{op="RET0",d="lit",a="rbase",description="return",},{op="RET1",d="lit",a="rbase",description="return A",},{op="FORI",d="jump",a="base",description="Numeric 'for' loop init",},{op="JFORI",d="jump",a="base",description="Numeric 'for' loop init",},{op="FORL",d="jump",a="base",description="Numeric 'for' loop",},{op="IFORL",d="jump",a="base",description="Numeric 'for' loop",},{op="JFORL",d="lit",a="base",description="Numeric 'for' loop",},{op="ITERL",d="jump",a="base",description="Iterator 'for' loop",},{op="IITERL",d="jump",a="base",description="Iterator 'for' loop",},{op="JITERL",d="lit",a="base",description="Iterator 'for' loop",},{op="LOOP",d="jump",a="rbase",description="Generic loop",},{op="ILOOP",d="jump",a="rbase",description="Generic loop",},{op="JLOOP",d="lit",a="rbase",description="Generic loop",},{op="JMP",d="jump",a="rbase",description="Jump",},{op="FUNCF",d="",a="rbase",description="Fixed-arg Lua function",},{op="IFUNCF",d="",a="rbase",description="Fixed-arg Lua function",},{op="JFUNCF",d="lit",a="rbase",description="Fixed-arg Lua function",},{op="FUNCV",d="",a="rbase",description="Vararg Lua function",},{op="IFUNCV",d="",a="rbase",description="Vararg Lua function",},{op="JFUNCV",d="lit",a="rbase",description="Vararg Lua function",},{op="FUNCC",d="",a="rbase",description="Pseudo-header for C functions",},{op="FUNCCW",d="",a="rbase",description="Pseudo-header for wrapped C functions",},}
 
+local DEBUG = false
+
+
 local documentation = {}
 
-for k, v in ipairs(tmp_documentation) do
-	documentation[v.op] = v
+if DEBUG then
+	for k, v in ipairs(tmp_documentation) do
+		documentation[v.op] = v
+	end
 end
 
 jit.util = jit.util or require("jit.util")
 
 local OPNAMES = {}
+
+-- for gmod, check your luajit version and import it manually
 local vmdef = require("jit.vmdef")
 local bcnames = vmdef.bcnames
 local INST = {}
@@ -26,14 +33,15 @@ end
 
 assert(INST.ISLT == 0)
 
+if DEBUG then
+	for k, v in pairs(documentation) do
+		assert(INST[k], "Documentation for unknown instructions : " .. k)
+	end
 
-for k, v in pairs(documentation) do
-	assert(INST[k], "Documentation for unknown instructions : " .. k)
-end
-
-for k, v in pairs(OPNAMES) do
-	if not documentation[v] then
-		print("Instruction : " .. v .. " isn't documented")
+	for k, v in pairs(OPNAMES) do
+		if not documentation[v] then
+			print("Instruction : " .. v .. " isn't documented")
+		end
 	end
 end
 
@@ -83,9 +91,10 @@ local function getregisters(instruction, consts, upvalues)
 	end
 end
 
+--fn is the function
+--fast to true if you don't want any documentation and register filtering gives about 20-50% perf boost
 
-
-local function disassemble_function(fn)
+local function disassemble_function(fn, fast)
 	assert(fn, "function expected")
 	local upvalues = {}
 	local n = 0
@@ -125,29 +134,35 @@ local function disassemble_function(fn)
 	while (n < countBC) do
 		local ins = jit.util.funcbc(fn, n)
 		local instruction = {}
-		instruction.n = n
 		instruction.OP_CODE = bit.band(ins, 0xFF)
-		instruction.OP_ENGLISH = OPNAMES[instruction.OP_CODE]
-		local documentation = documentation[instruction.OP_ENGLISH]
-		instruction.OP_DESCRIPTION = documentation.description
+		if not fast then
+			instruction.OP_ENGLISH = OPNAMES[instruction.OP_CODE]
+			local _documentation = documentation[instruction.OP_ENGLISH]
+			instruction.OP_DESCRIPTION = _documentation.description
 
-		if (documentation.c and documentation.c:len() > 0) or (documentation["c/d"] and documentation["c/d"]:len() > 0) then
+			if (_documentation.c and _documentation.c:len() > 0) or (_documentation["c/d"] and _documentation["c/d"]:len() > 0) then
+				instruction.C = bit.rshift(bit.band(ins, 0x00ff0000), 16)
+			end
+
+			if _documentation.b and _documentation.b:len() > 0 then
+				instruction.B = bit.rshift(ins, 24)
+			end
+
+			if _documentation.a and _documentation.a:len() > 0 then
+				instruction.A = bit.rshift(bit.band(ins, 0x0000ff00), 8)
+			end
+
+			if (_documentation.d and _documentation.d:len() > 0) or (_documentation["c/d"] and _documentation["c/d"]:len() > 0) then
+				instruction.D = bit.rshift(ins, 16)
+			end
+			getregisters(instruction, consts, upvalues) 
+		else
 			instruction.C = bit.rshift(bit.band(ins, 0x00ff0000), 16)
-		end
-
-		if documentation.b and documentation.b:len() > 0 then
 			instruction.B = bit.rshift(ins, 24)
-		end
-
-		if documentation.a and documentation.a:len() > 0 then
 			instruction.A = bit.rshift(bit.band(ins, 0x0000ff00), 8)
-		end
-
-		if (documentation.d and documentation.d:len() > 0) or (documentation["c/d"] and documentation["c/d"]:len() > 0) then
 			instruction.D = bit.rshift(ins, 16)
 		end
 
-		getregisters(instruction, consts, upvalues)
 		instructions[n] = instruction
 		n = n + 1
 	end
@@ -223,7 +238,7 @@ end
 local function get_function_declarations(fn)
 	assert(fn, "function expected")
 	local symbols = {}
-	local data = disassemble_function(fn)
+	local data = disassemble_function(fn, true)
 	local pos = 1
 	local count = #data.instructions
 	while (pos <= count) do
@@ -232,7 +247,9 @@ local function get_function_declarations(fn)
 		if curIns.OP_CODE == INST.FNEW then
 			--consts also contains protos which are functions
 			local _proto = jit.util.funcinfo(data.consts[curIns.D])
-			local location = _proto.loc
+			local location = {_start = _proto.linedefined,
+							_end = _proto.lastlinedefined}
+
 			local fName;
 			-- if we're not at the end of the function
 			if pos + 1 ~= count then
@@ -258,18 +275,20 @@ local function get_function_declarations(fn)
 							fName = data.consts[previousIns.D] .. "." .. fName
 							endOfFunctionDeclaration = true
 							break
-						else
+						elseif DEBUG then
 							print("Unexpected instruction : " .. previousIns.OP_ENGLISH)
 						end
 						modifier = modifier - 1
 						previousIns = data.instructions[pos + modifier]
 					end
 					assert(endOfFunctionDeclaration, "Missing instruction GGET for getting global table")
-				else
+				elseif DEBUG then
 					print("WTF#1 ", nextIns.OP_ENGLISH)
 				end
 			else
-				print("break")
+				if DEBUG then
+					print("break")
+				end
 				break
 			end
 			symbols[fName] = location
@@ -279,7 +298,6 @@ local function get_function_declarations(fn)
 	end
 	return symbols
 end
-
 
 local function fileGetSymbols(path)
 	assert(path, "path expected")
