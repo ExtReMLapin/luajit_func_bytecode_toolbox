@@ -244,6 +244,9 @@ local function get_function_declarations(fn)
 	while (pos <= count) do
 		local curIns = data.instructions[pos]
 		-- new closure (function ?)
+
+
+		-- function(...) <unreachable bytecode (from here)> end <-- we're here
 		if curIns.OP_CODE == INST.FNEW then
 			--consts also contains protos which are functions
 			local _proto = jit.util.funcinfo(data.consts[curIns.D])
@@ -255,11 +258,34 @@ local function get_function_declarations(fn)
 			if pos + 1 ~= count then
 				local nextIns = data.instructions[pos + 1]
 
-				-- found instructioncreating a global function
+				-- We got a Global Set instruction which mean there nothing of value before the FNEW instruction
+				--
+				--                 vvvvvvvvvvvvv <-- previous instruction
+				--  _G[variable] = function(...) <unreachable bytecode (from here)> end
+				--     ^^^^^^^^ <-- we're here
 				if nextIns.OP_CODE == INST.GSET then
 					fName = data.consts[nextIns.D]
 
 				-- found instruction creating a function in a table TSETS = Table
+				--[[ 	We got a Table Set instruction which mean we're already in a table
+						and we need to find which one(s) by browsing the instructions before the FNEW instruction
+						We should meet one or zero TGETS because we're doing potentiable table lookups
+						
+						Ex : 
+						    Global Lookup [GGET]
+						            ^
+						            |
+						            |   Table lookup [TGET] 
+						            |    ^
+						            |    |			FNEW
+						            |    |           | 
+						function potato.tata.yolo() .... end
+						                        |
+						                        v
+						                       And now we're doing a table set since we're creating
+						                       a new variable (a function) in an existing table [TSETS]
+
+						--]]
 				elseif nextIns.OP_CODE == INST.TSETS then
 					fName = data.consts[nextIns.C]
 					-- starting to loop back to fetch the parrent table(s)
@@ -319,4 +345,3 @@ local function fileGetSymbols(path)
 	local ret = get_function_declarations(file)
 	return ret
 end
-
