@@ -1,3 +1,12 @@
+# Why ?
+
+
+because it's much easier to parse bytecode than to parse code itself
+
+
+
+
+
 # Not working on gmod because of jit.vmdef
 
 
