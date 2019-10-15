@@ -275,13 +275,22 @@ local function get_function_declarations(fn)
 							fName = data.consts[previousIns.D] .. "." .. fName
 							endOfFunctionDeclaration = true
 							break
-						elseif DEBUG then
-							print("Unexpected instruction : " .. previousIns.OP_ENGLISH)
+						else
+							if DEBUG then
+								print("Unexpected instruction : " .. previousIns.OP_ENGLISH)
+							end
+							fName = nil
+							break
 						end
 						modifier = modifier - 1
 						previousIns = data.instructions[pos + modifier]
 					end
-					assert(endOfFunctionDeclaration, "Missing instruction GGET for getting global table")
+					if not endOfFunctionDeclaration then
+						if DEBUG then
+							print("Missing instruction GGET for getting global table")
+						end
+						fName = nil
+					end
 				else
 					if DEBUG then
 						print("WTF#1 ", nextIns.OP_ENGLISH, location._start, location._end)
@@ -306,14 +315,8 @@ end
 
 local function fileGetSymbols(path)
 	assert(path, "path expected")
-	local file = assert(loadfile(path), "Could not open file")
+	local file = assert(loadfile(path), "Could not open/compile file")
 	local ret = get_function_declarations(file)
 	return ret
 end
-
-require("printtable")
-
-
-
-PrintTable(fileGetSymbols("C:\\Users\\pfichepoil\\Desktop\\AAI\\Chronopost\\Scripts\\Chronopost.lua"))
 
