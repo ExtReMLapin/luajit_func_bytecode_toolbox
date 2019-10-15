@@ -238,7 +238,7 @@ end
 local function get_function_declarations(fn)
 	assert(fn, "function expected")
 	local symbols = {}
-	local data = disassemble_function(fn, true)
+	local data = disassemble_function(fn, not DEBUG)
 	local pos = 1
 	local count = #data.instructions
 	while (pos <= count) do
@@ -255,14 +255,14 @@ local function get_function_declarations(fn)
 			if pos + 1 ~= count then
 				local nextIns = data.instructions[pos + 1]
 
-				-- creating a global function
+				-- found instructioncreating a global function
 				if nextIns.OP_CODE == INST.GSET then
 					fName = data.consts[nextIns.D]
 
-				-- creating a function in a table
+				-- found instruction creating a function in a table TSETS = Table
 				elseif nextIns.OP_CODE == INST.TSETS then
 					fName = data.consts[nextIns.C]
-					-- starting to loop back
+					-- starting to loop back to fetch the parrent table(s)
 					assert((pos - 1) > 0, "Error in instructions, expected TGETS or GGET but found nothing")
 					local modifier = -1
 					local previousIns = data.instructions[pos + modifier]
@@ -282,8 +282,10 @@ local function get_function_declarations(fn)
 						previousIns = data.instructions[pos + modifier]
 					end
 					assert(endOfFunctionDeclaration, "Missing instruction GGET for getting global table")
-				elseif DEBUG then
-					print("WTF#1 ", nextIns.OP_ENGLISH)
+				else
+					if DEBUG then
+						print("WTF#1 ", nextIns.OP_ENGLISH, location._start, location._end)
+					end
 				end
 			else
 				if DEBUG then
@@ -291,7 +293,10 @@ local function get_function_declarations(fn)
 				end
 				break
 			end
-			symbols[fName] = location
+			-- local functions use FNEW but doesn't report any name
+			if fName then
+				symbols[fName] = location
+			end
 
 		end
 		pos = pos + 1
