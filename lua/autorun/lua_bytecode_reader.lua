@@ -10,8 +10,8 @@ jit.util = jit.util or require("jit.util")
 
 
 local OPNAMES = {}
-local bcnames = "ISLT  ISGE  ISLE  ISGT  ISEQV ISNEV ISEQS ISNES ISEQN ISNEN ISEQP ISNEP ISTC  ISFC  IST   ISF   MOV   NOT   UNM   LEN   ADDVN SUBVN MULVN DIVVN MODVN ADDNV SUBNV MULNV DIVNV MODNV ADDVV SUBVV MULVV DIVVV MODVV POW   CAT   KSTR  KCDATAKSHORTKNUM  KPRI  KNIL  UGET  USETV USETS USETN USETP UCLO  FNEW  TNEW  TDUP  GGET  GSET  TGETV TGETS TGETB TSETV TSETS TSETB TSETM CALLM CALL  CALLMTCALLT ITERC ITERN VARG  ISNEXTRETM  RET   RET0  RET1  FORI  JFORI FORL  IFORL JFORL ITERL IITERLJITERLLOOP  ILOOP JLOOP JMP   FUNCF IFUNCFJFUNCFFUNCV IFUNCVJFUNCVFUNCC FUNCCW"
-
+local vmdef = require("jit.vmdef")
+local bcnames = vmdef.bcnames
 local INST={}
 
 do
@@ -34,7 +34,9 @@ for k, v in pairs(documentation) do
 end
 
 for k, v in pairs(OPNAMES) do
-	assert(documentation[v], "Instruction : " .. v .. " isn't documented")
+	if not documentation[v] then
+		print("Instruction : " .. v .. " isn't documented")
+	end
 end
 
 local JIT_INST = {
@@ -61,11 +63,20 @@ local functions_headers = {
 
 local ref_table_set_vars = {
 	GGET = function(instruction, consts, upvalues)
-		instruction.A_value = consts[instruction.A]
+		instruction.A_value = consts[instruction.D]
 	end,
 	UGET = function(instruction, consts, upvalues)
-		instruction.A_value = upvalues[instruction.A]
-	end
+		instruction.A_value = upvalues[instruction.D]
+	end,
+	TGETS = function(instruction, consts, upvalues)
+		instruction.A_value = "curTable[\""..  consts[instruction.D] .. "\"]"
+	end,
+	FNEW = function(instruction, consts, upvalues)
+		instruction.A_value = tostring(consts[instruction.D])
+	end,
+	TSETS = function(instruction, consts, upvalues)
+		instruction["curTable[\""..  consts[instruction.C] .. "\"]"] = "A"
+	end,
 }
 
 local function getregisters(instruction, consts, upvalues)
@@ -76,7 +87,7 @@ end
 
 
 
-local function disassemble_function(fn)
+local function disassemble_function(fn, symbols_only)
 	local upvalues = {}
 	local n = 0
 	local upvalue = jit.util.funcuvname(fn, n)
@@ -191,19 +202,19 @@ local meta = a.__index -- when doing func.disassemble it's calling __index
 
 
 debug.setmetatable(disassemble_function, a)
-function meta.disassemble(fn)
-	return disassemble_function(fn)
+function meta.disassemble(...)
+	return disassemble_function(...)
 end
 
 debug.setmetatable(hasJITInstruction, a)
 
-function meta.isJITed(fn)
-	return hasJITInstruction(fn)
+function meta.isJITed(...)
+	return hasJITInstruction(...)
 end
 
 
 debug.setmetatable(JITLevel, a)
 
-function meta.getJITLevel(fn)
-	return JITLevel(fn)
+function meta.getJITLevel(...)
+	return JITLevel(...)
 end
