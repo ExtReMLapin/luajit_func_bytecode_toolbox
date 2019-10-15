@@ -8,25 +8,23 @@ end
 
 jit.util = jit.util or require("jit.util")
 
-
 local OPNAMES = {}
 local vmdef = require("jit.vmdef")
 local bcnames = vmdef.bcnames
-local INST={}
+local INST = {}
 
 do
-	local i=0
+	local i = 0
 
-	for str in bcnames:gmatch "......" do
+	for str in bcnames:gmatch"......" do
 		str = str:gsub("%s", "")
-		OPNAMES[i]=str
+		OPNAMES[i] = str
 		INST[str] = i
-		i=i+1
+		i = i + 1
 	end
 end
 
-assert(INST.ISLT==0)
-
+assert(INST.ISLT == 0)
 
 
 for k, v in pairs(documentation) do
@@ -69,7 +67,7 @@ local ref_table_set_vars = {
 		instruction.A_value = upvalues[instruction.D]
 	end,
 	TGETS = function(instruction, consts, upvalues)
-		instruction.A_value = "curTable[\""..  consts[instruction.D] .. "\"]"
+		instruction.A_value = "curTable[\""..  consts[instruction.C] .. "\"]"
 	end,
 	FNEW = function(instruction, consts, upvalues)
 		instruction.A_value = tostring(consts[instruction.D])
@@ -87,7 +85,8 @@ end
 
 
 
-local function disassemble_function(fn, symbols_only)
+local function disassemble_function(fn)
+	assert(fn, "function expected")
 	local upvalues = {}
 	local n = 0
 	local upvalue = jit.util.funcuvname(fn, n)
@@ -126,6 +125,7 @@ local function disassemble_function(fn, symbols_only)
 	while (n < countBC) do
 		local ins = jit.util.funcbc(fn, n)
 		local instruction = {}
+		instruction.n = n
 		instruction.OP_CODE = bit.band(ins, 0xFF)
 		instruction.OP_ENGLISH = OPNAMES[instruction.OP_CODE]
 		local documentation = documentation[instruction.OP_ENGLISH]
@@ -217,4 +217,73 @@ debug.setmetatable(JITLevel, a)
 
 function meta.getJITLevel(...)
 	return JITLevel(...)
+end
+
+
+local function get_function_declarations(fn)
+	assert(fn, "function expected")
+	local symbols = {}
+	local data = disassemble_function(fn)
+	local pos = 1
+	local count = #data.instructions
+	while (pos <= count) do
+		local curIns = data.instructions[pos]
+		-- new closure (function ?)
+		if curIns.OP_CODE == INST.FNEW then
+			--consts also contains protos which are functions
+			local _proto = jit.util.funcinfo(data.consts[curIns.D])
+			local location = _proto.loc
+			local fName;
+			-- if we're not at the end of the function
+			if pos + 1 ~= count then
+				local nextIns = data.instructions[pos + 1]
+
+				-- creating a global function
+				if nextIns.OP_CODE == INST.GSET then
+					fName = data.consts[nextIns.D]
+
+				-- creating a function in a table
+				elseif nextIns.OP_CODE == INST.TSETS then
+					fName = data.consts[nextIns.C]
+					-- starting to loop back
+					assert((pos - 1) > 0, "Error in instructions, expected TGETS or GGET but found nothing")
+					local modifier = -1
+					local previousIns = data.instructions[pos + modifier]
+					local endOfFunctionDeclaration = false
+
+					while (previousIns ~= nil) do
+						if previousIns.OP_CODE == INST.TGETS then
+							fName = data.consts[previousIns.C] .. "." .. fName
+						elseif previousIns.OP_CODE == INST.GGET then
+							fName = data.consts[previousIns.D] .. "." .. fName
+							endOfFunctionDeclaration = true
+							break
+						else
+							print("Unexpected instruction : " .. previousIns.OP_ENGLISH)
+						end
+						modifier = modifier - 1
+						previousIns = data.instructions[pos + modifier]
+					end
+					assert(endOfFunctionDeclaration, "Missing instruction GGET for getting global table")
+				else
+					print("WTF#1 ", nextIns.OP_ENGLISH)
+				end
+			else
+				print("break")
+				break
+			end
+			symbols[fName] = location
+
+		end
+		pos = pos + 1
+	end
+	return symbols
+end
+
+
+local function fileGetSymbols(path)
+	assert(path, "path expected")
+	local file = assert(loadfile(path), "Could not open file")
+	local ret = get_function_declarations(file)
+	return ret
 end
