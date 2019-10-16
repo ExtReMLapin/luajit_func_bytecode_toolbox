@@ -332,8 +332,9 @@ end
 
 local function fileGetSymbols(path, recursive)
 	assert(path, "path expected")
-	local file = assert(loadfile(path), "Could not open/compile file")
-	local ret = get_function_declarations(file, recursive)
+	local func = assert(loadfile(path), "Could not open/compile file")
+	if not jit.util.funcinfo(func).children then return {} end
+	local ret = get_function_declarations(func, recursive)
 	return ret
 end
 
