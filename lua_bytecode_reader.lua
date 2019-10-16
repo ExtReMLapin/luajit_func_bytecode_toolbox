@@ -316,10 +316,12 @@ local function get_function_declarations(fn, recursive)
 				--symbols[fName] = location
 			end
 			if recursive then
-				for _, subFunctionDeclaration in ipairs(get_function_declarations(data.consts[curIns.D], true)) do
-					table.insert(symbols, subFunctionDeclaration)
+				local func = data.consts[curIns.D]
+				if jit.util.funcinfo(func).children == true then
+					for _, subFunctionDeclaration in ipairs(get_function_declarations(func, true)) do
+						table.insert(symbols, subFunctionDeclaration)
+					end
 				end
-
 			end
 
 		end
@@ -327,26 +329,6 @@ local function get_function_declarations(fn, recursive)
 	end
 	return symbols
 end
-
-function get_variables_declarations(fn, dumb_mode)
-	local list = {}
-	if dumb_mode then
-		local n = -1
-		local value = jit.util.funck(fn, n)
-
-		while (value ~= nil) do
-			if type(value) == "string" then
-				table.insert(list, value)
-			end
-			n = n - 1
-			value = jit.util.funck(fn, n)
-		end
-		return list
-	else
-		-- bruh
-	end
-end
-
 
 local function fileGetSymbols(path, recursive)
 	assert(path, "path expected")
