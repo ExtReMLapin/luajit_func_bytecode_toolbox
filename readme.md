@@ -1,12 +1,32 @@
 # Why ?
 
 
-because it's much easier to parse bytecode than to parse code itself
+Because it's much easier (and faster) to parse bytecode than to parse code itself
+
+Because there are some detections that CANNOT (or it's really dirty) be done using only hooks and detours
 
 
+You can detect which function pass you an argument, the type of the argument but you can't detect if that argument was cached or not.
 
+Example from garry's mod : 
 
-Symbols dumps : 
+the function `Color(255,255,255)` generates a color object.
+
+This object is used in render contexts.
+
+If you have "dynamic" variables inside this function fine, i guess it's perfectly fine to call it to regenrate a color on the fly like this : 
+
+`Color(distance, distance, distance)` however, `Color(42,256,42)` is wrong and it should be cached.
+
+So yeah you could read the callstack and manually read the file ... but that's dirty.
+
+And this is why i created this library, you can know if the function call uses KSHORTS (constants) or upvalues.
+
+With is you can do much more things like symbols dumps :
+
+You could open a file and make your own parser but it's going to be a mess, take you some time and there is always one specific syntax what you will not handle/handle differently from LuaJIT.
+
+This is why i decided to stick with the LuaJIT parser and just parse the bytecode to find what I need.
 
 
 ```Lua
