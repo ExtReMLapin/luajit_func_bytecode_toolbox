@@ -5,11 +5,11 @@ local DEBUG = false
 
 local documentation = {}
 
-if DEBUG then
-	for k, v in ipairs(tmp_documentation) do
-		documentation[v.op] = v
-	end
+
+for k, v in ipairs(tmp_documentation) do
+	documentation[v.op] = v
 end
+
 
 jit.util = jit.util or require("jit.util")
 
@@ -209,7 +209,7 @@ local function JITLevel(fn)
 
 end
 
-local function get_function_declarations(fn)
+local function get_function_declarations(fn, recursive)
 	assert(fn, "function expected")
 	local symbols = {}
 	local data = disassemble_function(fn, not DEBUG)
@@ -277,7 +277,6 @@ local function get_function_declarations(fn)
 							break
 						else
 							if DEBUG then
-
 								print("Unexpected instruction : " .. OPNAMES[previousIns.OP_CODE])
 							end
 							fName = nil
@@ -305,7 +304,15 @@ local function get_function_declarations(fn)
 			end
 			-- local functions use FNEW but doesn't report any name
 			if fName then
-				symbols[fName] = location
+				location.name = fName
+				table.insert(symbols, location)
+				--symbols[fName] = location
+			end
+			if recursive then
+				for _, subFunctionDeclaration in ipairs(get_function_declarations(data.consts[curIns.D], true)) do
+					table.insert(symbols, subFunctionDeclaration)
+				end
+
 			end
 
 		end
@@ -314,10 +321,10 @@ local function get_function_declarations(fn)
 	return symbols
 end
 
-local function fileGetSymbols(path)
+local function fileGetSymbols(path, recursive)
 	assert(path, "path expected")
 	local file = assert(loadfile(path), "Could not open/compile file")
-	local ret = get_function_declarations(file)
+	local ret = get_function_declarations(file, recursive)
 	return ret
 end
 
