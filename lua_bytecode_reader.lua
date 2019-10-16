@@ -209,32 +209,6 @@ local function JITLevel(fn)
 
 end
 
-
-local a = debug.getmetatable(disassemble_function) or {}
-a.__index = a.__index or a -- assuming __index is not a function
-local meta = a.__index -- when doing func.disassemble it's calling __index
-
-
-
-debug.setmetatable(disassemble_function, a)
-function meta.disassemble(...)
-	return disassemble_function(...)
-end
-
-debug.setmetatable(hasJITInstruction, a)
-
-function meta.isJITed(...)
-	return hasJITInstruction(...)
-end
-
-
-debug.setmetatable(JITLevel, a)
-
-function meta.getJITLevel(...)
-	return JITLevel(...)
-end
-
-
 local function get_function_declarations(fn)
 	assert(fn, "function expected")
 	local symbols = {}
@@ -244,6 +218,9 @@ local function get_function_declarations(fn)
 	while (pos <= count) do
 		local curIns = data.instructions[pos]
 		-- new closure (function ?)
+
+
+		-- function(...) <unreachable bytecode (from here)> end <-- we're here
 		if curIns.OP_CODE == INST.FNEW then
 			--consts also contains protos which are functions
 			local _proto = jit.util.funcinfo(data.consts[curIns.D])
@@ -255,11 +232,34 @@ local function get_function_declarations(fn)
 			if pos + 1 ~= count then
 				local nextIns = data.instructions[pos + 1]
 
-				-- found instructioncreating a global function
+				-- We got a Global Set instruction which mean there nothing of value before the FNEW instruction
+				--
+				--                 vvvvvvvvvvvvv <-- previous instruction
+				--  _G[variable] = function(...) <unreachable bytecode (from here)> end
+				--     ^^^^^^^^ <-- we're here
 				if nextIns.OP_CODE == INST.GSET then
 					fName = data.consts[nextIns.D]
 
 				-- found instruction creating a function in a table TSETS = Table
+				--[[ 	We got a Table Set instruction which mean we're already in a table
+						and we need to find which one(s) by browsing the instructions before the FNEW instruction
+						We should meet one or zero TGETS because we're doing potentiable table lookups
+						
+						Ex : 
+						    Global Lookup [GGET]
+						            ^
+						            |
+						            |   Table lookup [TGET] 
+						            |    ^
+						            |    |			FNEW
+						            |    |           | 
+						function potato.tata.yolo() .... end
+						                        |
+						                        v
+						                       And now we're doing a table set since we're creating
+						                       a new variable (a function) in an existing table [TSETS]
+
+						--]]
 				elseif nextIns.OP_CODE == INST.TSETS then
 					fName = data.consts[nextIns.C]
 					-- starting to loop back to fetch the parrent table(s)
@@ -277,7 +277,8 @@ local function get_function_declarations(fn)
 							break
 						else
 							if DEBUG then
-								print("Unexpected instruction : " .. previousIns.OP_ENGLISH)
+
+								print("Unexpected instruction : " .. OPNAMES[previousIns.OP_CODE])
 							end
 							fName = nil
 							break
@@ -321,9 +322,29 @@ local function fileGetSymbols(path)
 end
 
 
+local a = debug.getmetatable(disassemble_function) or {}
+a.__index = a.__index or a -- assuming __index is not a function
+local meta = a.__index -- when doing func.disassemble it's calling __index
 
-local tbl = fileGetSymbols("C:\\Users\\pfichepoil\\Desktop\\AAI\\Chronopost\\Scripts\\Chronopost.lua")
 
-for k, v in pairs(tbl) do
-	print(k, v._start .. ":" .. v._end)
+
+debug.setmetatable(disassemble_function, a)
+function meta.disassemble(...)
+	return disassemble_function(...)
 end
+
+debug.setmetatable(hasJITInstruction, a)
+
+function meta.isJITed(...)
+	return hasJITInstruction(...)
+end
+
+
+debug.setmetatable(JITLevel, a)
+
+function meta.getJITLevel(...)
+	return JITLevel(...)
+end
+
+
+jit.getFileSymbols = fileGetSymbols
