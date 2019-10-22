@@ -128,25 +128,25 @@ local registersDocumentation = {
 	[INST.GSET] = function(instruction, consts)
 		instruction.DO = "_G[\""..  tostring(consts[-instruction.C-1]) .. "\"] = A"
 	end,
-	[INST.UCLO] = function(instruction, consts, upvalues)
+	[INST.UCLO] = function(instruction, consts)
 		instruction.DO = string.format("Close upvalies for slots >= %i and jump to instruction %i", instruction.A, instruction.D)
 	end,
-	[INST.KSTR] = function(instruction, consts, upvalues)
+	[INST.KSTR] = function(instruction, consts)
 		instruction.DO = string.format("stack[%i] = \"%s\"", instruction.A, tostring(consts[-instruction.D-1]))
 	end,
-	[INST.KCDATA] = function(instruction, consts, upvalues)
+	[INST.KCDATA] = function(instruction, consts)
 		instruction.DO = string.format("stack[%i] = %s", instruction.A, tostring(consts[-instruction.D-1]))
 	end,
-	[INST.KSHORT] = function(instruction, consts, upvalues)
+	[INST.KSHORT] = function(instruction)
 		instruction.DO = string.format("stack[%i] = %s", instruction.A, instruction.D)
 	end,
-	[INST.KNUM] = function(instruction, consts, upvalues)
+	[INST.KNUM] = function(instruction, consts)
 		instruction.DO = string.format("stack[%i] = %s", instruction.A, tostring(consts[instruction.D]))
 	end,
-	[INST.KPRI] = function(instruction, consts, upvalues)
-		instruction.DO = string.format("stack[%i] = %s", instruction.A, tostring(consts[-instruction.D-1]))
+	[INST.KPRI] = function(instruction)
+		instruction.DO = string.format("stack[%i] = nil (?)", instruction.A)
 	end,
-	[INST.KNIL] = function(instruction, consts, upvalues)
+	[INST.KNIL] = function(instruction)
 		local outTable = {}
 		local start = instruction.A
 		while start <= instruction.D do
@@ -155,6 +155,9 @@ local registersDocumentation = {
 		end
 		instruction.DO = table.concat(outTable, "\n")
 	end,
+	[INST.TNEW] = function(instruction)
+		instruction.DO = string.format("stack[%i] = {} -- size custom", instruction.A)
+	end
 }
 
 
@@ -200,6 +203,8 @@ local function disassemble_function(fn, fast)
 	assert(fn, "function expected")
 	local fnTableData = jit.util.funcinfo(fn)
 	assert(fnTableData.loc, "expected a Lua function, not a C one")
+
+	
 
 	local nUpValues = jit.util.funcinfo(fn).upvalues
 	local upvalues = {}
@@ -299,11 +304,12 @@ local function disassemble_function(fn, fast)
 			doSpecialModeOperations(instruction, n)
 			getRegistersDocumentation(instruction, consts, upvalues)
 		else
-			doSpecialModeOperations(instruction, n)
+			
 			instruction.C = bit.rshift(bit.band(ins, 0x00ff0000), 16)
 			instruction.B = bit.rshift(ins, 24)
 			instruction.A = bit.rshift(bit.band(ins, 0x0000ff00), 8)
 			instruction.D = bit.rshift(ins, 16)
+			doSpecialModeOperations(instruction, n)
 		end
 
 		instructions[n] = instruction
@@ -466,8 +472,19 @@ local function get_function_declarations(fn, recursive)
 		pos = pos + 1
 	end
 
-	-- jump at the end
+--[[	-- jump at the end
 	pos = count
+	local curIns = data.instructions[pos]
+	-- we want to see if the file returns a table
+	if curIns.OP_CODE ~= INST.RET1 then return symbols end
+	local returnedElement = data.consts[-curIns.A-1]
+	print(returnedElement)
+	if type(returnedElement) == "table" then
+		print("yes")
+
+	end]]
+
+
 
 	return symbols
 end
@@ -507,3 +524,15 @@ end
 
 
 jit.getFileSymbols = fileGetSymbols
+
+
+local fn = loadfile("C:\\Users\\pfichepoil\\Desktop\\shit_code.lua")
+
+require("printtable")
+
+
+--local tbl = get_function_declarations(fn, true)
+local tbl = fn:disassemble()
+
+PrintTable(tbl)
+
