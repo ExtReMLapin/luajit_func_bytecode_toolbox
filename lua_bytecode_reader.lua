@@ -6,6 +6,8 @@ local tmp_documentation = {{op="ISLT",d="var",a="var",description="Jump if A < D
 local DEBUG = false
 
 
+require("bitex")
+
 local documentation = {}
 
 
@@ -34,7 +36,46 @@ do
 	end
 end
 
+
 assert(INST.ISLT == 0)
+local BCMode = {
+	-- for the robots
+	BCMnone = 0,
+	BCMdst = 1,
+	BCMbase = 2,
+	BCMvar = 3,
+	BCMrbase = 4,
+	BCMuv = 5,
+	BCMlit = 6,
+	BCMlits = 7,
+	BCMpri = 8,
+	BCMnum = 9,
+	BCMstr = 10,
+	BCMtab = 11,
+	BCMfunc = 12,
+	BCMjump = 13,
+	BCMcdata = 14,
+	BCM_max = 15,
+	-- for the human
+	[0] = "BCMnone",
+	[1] = "BCMdst",
+	[2] = "BCMbase",
+	[3] = "BCMvar",
+	[4] = "BCMrbase",
+	[5] = "BCMuv",
+	[6] = "BCMlit",
+	[7] = "BCMlits",
+	[8] = "BCMpri",
+	[9] = "BCMnum",
+	[10] = "BCMstr",
+	[11] = "BCMtab",
+	[12] = "BCMfunc",
+	[13] = "BCMjump",
+	[14] = "BCMcdata",
+	[15] = "BCM_max"
+}
+
+
 
 if DEBUG then
 	for k, v in pairs(documentation) do
@@ -70,31 +111,61 @@ local functions_headers = {
 }
 
 
-local ref_table_set_vars = {
-	GGET = function(instruction, consts, upvalues)
+local registersDocumentation = {
+	[INST.GGET] = function(instruction, consts)
 		instruction.A_value = consts[instruction.D]
 	end,
-	UGET = function(instruction, consts, upvalues)
+	[INST.UGET] = function(instruction, consts, upvalues)
 		instruction.A_value = upvalues[instruction.D]
 	end,
-	TGETS = function(instruction, consts, upvalues)
+	[INST.TGETS] = function(instruction, consts)
 		instruction.A_value = "curTable[\""..  consts[instruction.C] .. "\"]"
 	end,
-	FNEW = function(instruction, consts, upvalues)
+	[INST.FNEW] = function(instruction, consts)
 		instruction.A_value = tostring(consts[instruction.D])
 	end,
-	TSETS = function(instruction, consts, upvalues)
+	[INST.TSETS] = function(instruction, consts)
 		instruction["curTable[\""..  consts[instruction.C] .. "\"]"] = "A"
 	end,
-	GSET = function(instruction, consts, upvalues)
+	[INST.GSET] = function(instruction, consts)
 		instruction["_G[\""..  consts[instruction.C] .. "\"]"] = "A"
 	end,
 }
 
-local function getregisters(instruction, consts, upvalues)
-	if ref_table_set_vars[instruction.OP_ENGLISH] then
-		ref_table_set_vars[instruction.OP_ENGLISH](instruction, consts, upvalues)
+
+
+local instructionsModesActions = {
+	A = {
+
+	},
+	B = {
+
+	},
+	C = {
+		[BCMode.BCMjump] = function(instruction, n)
+				-- the position to jump is relative to the current instruction
+				-- I should probably refactor this into a conditional table
+			instruction.JUMP_ADDRESS = instruction.D - 0x7fff + n
+		end,
+	}
+}
+
+local function getRegistersDocumentation(instruction, consts, upvalues)
+	if registersDocumentation[instruction.OP_CODE] then
+		registersDocumentation[instruction.OP_CODE](instruction, consts, upvalues)
 	end
+end
+
+
+local function getModesDocumentation(instruction, n)
+	local fn;
+	fn = instructionsModesActions.A[instruction.OP_MODES.CODE.A]
+	if fn then fn(instruction, n) end
+	fn = instructionsModesActions.B[instruction.OP_MODES.CODE.B]
+	if fn then fn(instruction, n) end
+	fn = instructionsModesActions.C[instruction.OP_MODES.CODE.C]
+	if fn then fn(instruction, n) end
+
 end
 
 --fn is the function
@@ -138,14 +209,32 @@ local function disassemble_function(fn, fast)
 		|||||||||||||||||
 		   D   D A T A
 	]]
+
 	while (n < countBC) do
-		local ins = jit.util.funcbc(fn, n)
+		local ins, mode = jit.util.funcbc(fn, n)
+
+		local modeA, modeB, modeC = bit.band(mode, 7), bit.rshift(bit.band(mode, 15 * 8),3),bit.rshift(bit.band(mode, 15 * 128),7)
+
+
 		local instruction = {}
 		instruction.OP_CODE = bit.band(ins, 0xFF)
+		instruction.OP_MODES = {}
+		instruction.OP_MODES.CODE = {
+				A = modeA,
+				B = modeB,
+				C = modeC
+			}
 		if not fast then
 			instruction.OP_ENGLISH = OPNAMES[instruction.OP_CODE]
 			local _documentation = documentation[instruction.OP_ENGLISH]
 			instruction.OP_DESCRIPTION = _documentation.description
+
+
+			instruction.OP_MODES.ENGLISH = {
+				A = BCMode[modeA],
+				B = BCMode[modeB],
+				C = BCMode[modeC]
+			}
 
 			if (_documentation.c and _documentation.c:len() > 0) or (_documentation["c/d"] and _documentation["c/d"]:len() > 0) then
 				instruction.C = bit.rshift(bit.band(ins, 0x00ff0000), 16)
@@ -162,7 +251,8 @@ local function disassemble_function(fn, fast)
 			if (_documentation.d and _documentation.d:len() > 0) or (_documentation["c/d"] and _documentation["c/d"]:len() > 0) then
 				instruction.D = bit.rshift(ins, 16)
 			end
-			getregisters(instruction, consts, upvalues) 
+			getRegistersDocumentation(instruction, consts, upvalues)
+			getModesDocumentation(instruction, n)
 		else
 			instruction.C = bit.rshift(bit.band(ins, 0x00ff0000), 16)
 			instruction.B = bit.rshift(ins, 24)
@@ -183,7 +273,7 @@ local function disassemble_function(fn, fast)
 	return ret
 end
 
-
+-- checks is there is ANY jit instruction
 local function hasJITInstruction(fn)
 	local countBC = jit.util.funcinfo(fn).bytecodes
 	local n = 1
@@ -198,7 +288,7 @@ local function hasJITInstruction(fn)
 	return false
 end
 
-
+-- basically counting the number of JIT bytecode instructions
 local function JITLevel(fn)
 	local instructions = 0
 	local countBC = jit.util.funcinfo(fn).bytecodes
@@ -216,6 +306,8 @@ local function JITLevel(fn)
 
 end
 
+
+-- returns a table of all declared non-local functions, enable recursive to check inside functions
 local function get_function_declarations(fn, recursive)
 	assert(fn, "function expected")
 	local symbols = {}
