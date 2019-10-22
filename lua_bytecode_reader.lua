@@ -201,10 +201,6 @@ local function disassemble_function(fn, fast)
 	local fnTableData = jit.util.funcinfo(fn)
 	assert(fnTableData.loc, "expected a Lua function, not a C one")
 
-	
-
-	print("first const = ", jit.util.funck(fn, -1))
-
 	local nUpValues = jit.util.funcinfo(fn).upvalues
 	local upvalues = {}
 	local nFoundUpvalues = 0
