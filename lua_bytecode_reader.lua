@@ -6,8 +6,6 @@ local tmp_documentation = {{op="ISLT",d="var",a="var",description="Jump if A < D
 local DEBUG = false
 
 
-require("bitex")
-
 local documentation = {}
 
 
@@ -113,22 +111,49 @@ local functions_headers = {
 
 local registersDocumentation = {
 	[INST.GGET] = function(instruction, consts)
-		instruction.A_value = consts[instruction.D]
+		instruction.A_value = consts[-instruction.D-1]
 	end,
 	[INST.UGET] = function(instruction, consts, upvalues)
 		instruction.A_value = upvalues[instruction.D]
 	end,
 	[INST.TGETS] = function(instruction, consts)
-		instruction.A_value = "curTable[\""..  consts[instruction.C] .. "\"]"
+		instruction.A_value = "curTable[\""..  consts[-instruction.C-1] .. "\"]"
 	end,
 	[INST.FNEW] = function(instruction, consts)
-		instruction.A_value = tostring(consts[instruction.D])
+		instruction.A_value = tostring(consts[-instruction.D-1])
 	end,
 	[INST.TSETS] = function(instruction, consts)
-		instruction["curTable[\""..  consts[instruction.C] .. "\"]"] = "A"
+		instruction["curTable[\""..  consts[-instruction.C-1] .. "\"]"] = "A"
 	end,
 	[INST.GSET] = function(instruction, consts)
-		instruction["_G[\""..  consts[instruction.C] .. "\"]"] = "A"
+		instruction.DO = "_G[\""..  tostring(consts[-instruction.C-1]) .. "\"] = A"
+	end,
+	[INST.UCLO] = function(instruction, consts, upvalues)
+		instruction.DO = string.format("Close upvalies for slots >= %i and jump to instruction %i", instruction.A, instruction.D)
+	end,
+	[INST.KSTR] = function(instruction, consts, upvalues)
+		instruction.DO = string.format("stack[%i] = \"%s\"", instruction.A, tostring(consts[-instruction.D-1]))
+	end,
+	[INST.KCDATA] = function(instruction, consts, upvalues)
+		instruction.DO = string.format("stack[%i] = %s", instruction.A, tostring(consts[-instruction.D-1]))
+	end,
+	[INST.KSHORT] = function(instruction, consts, upvalues)
+		instruction.DO = string.format("stack[%i] = %s", instruction.A, instruction.D)
+	end,
+	[INST.KNUM] = function(instruction, consts, upvalues)
+		instruction.DO = string.format("stack[%i] = %s", instruction.A, tostring(consts[instruction.D]))
+	end,
+	[INST.KPRI] = function(instruction, consts, upvalues)
+		instruction.DO = string.format("stack[%i] = %s", instruction.A, tostring(consts[-instruction.D-1]))
+	end,
+	[INST.KNIL] = function(instruction, consts, upvalues)
+		local outTable = {}
+		local start = instruction.A
+		while start <= instruction.D do
+			table.insert(outTable, string.format("stack[%i] = nil", start))
+			start = start + 1
+		end
+		instruction.DO = table.concat(outTable, "\n")
 	end,
 }
 
@@ -145,7 +170,7 @@ local instructionsModesActions = {
 		[BCMode.BCMjump] = function(instruction, n)
 				-- the position to jump is relative to the current instruction
 				-- I should probably refactor this into a conditional table
-			instruction.JUMP_ADDRESS = instruction.D - 0x7fff + n
+			instruction.D = instruction.D - 0x7fff + n
 		end,
 	}
 }
@@ -157,7 +182,7 @@ local function getRegistersDocumentation(instruction, consts, upvalues)
 end
 
 
-local function getModesDocumentation(instruction, n)
+local function doSpecialModeOperations(instruction, n)
 	local fn;
 	fn = instructionsModesActions.A[instruction.OP_MODES.CODE.A]
 	if fn then fn(instruction, n) end
@@ -173,23 +198,46 @@ end
 
 local function disassemble_function(fn, fast)
 	assert(fn, "function expected")
-	assert(jit.util.funcinfo(fn).loc, "expected a Lua function, not a C one")
-	local upvalues = {}
-	local n = 0
-	local upvalue = jit.util.funcuvname(fn, n)
+	local fnTableData = jit.util.funcinfo(fn)
+	assert(fnTableData.loc, "expected a Lua function, not a C one")
 
-	while (upvalue ~= nil) do
+	
+
+	print("first const = ", jit.util.funck(fn, -1))
+
+	local nUpValues = jit.util.funcinfo(fn).upvalues
+	local upvalues = {}
+	local nFoundUpvalues = 0
+	local n = 0
+	
+
+	--[[while (upvalue ~= nil) do
 		upvalues[n] = upvalue
 		n = n + 1
 		upvalue = jit.util.funcuvname(fn, n)
+	end]] -- the nconst bug probably exists aswell for the upvalues
+
+	while (nFoundUpvalues ~= nUpValues) do
+		local upvalue = jit.util.funcuvname(fn, n)
+		if (upvalue ~= nil) then
+			upvalues[nFoundUpvalues] = upvalue
+			nFoundUpvalues = nFoundUpvalues + 1
+		end
+		n = n + 1
 	end
 
+
+	local nConsts = jit.util.funcinfo(fn).nconsts
 	local consts = {}
-	n = -1
+	n = nConsts-1
+	local nFoundNumberConsts = 0
+	local nFoundConsts = 0
+
+	--[[]] -- fixing a luajit bug, -1 address returns const nil but 0 addres returns a correct const
 	local value = jit.util.funck(fn, n)
 
 	while (value ~= nil) do
-		consts[-1 * n - 1] = value
+		consts[n] = value
 		n = n - 1
 		value = jit.util.funck(fn, n)
 	end
@@ -227,7 +275,7 @@ local function disassemble_function(fn, fast)
 		if not fast then
 			instruction.OP_ENGLISH = OPNAMES[instruction.OP_CODE]
 			local _documentation = documentation[instruction.OP_ENGLISH]
-			instruction.OP_DESCRIPTION = _documentation.description
+			instruction.OP_DOCUMENTATION = _documentation.description
 
 
 			instruction.OP_MODES.ENGLISH = {
@@ -251,9 +299,11 @@ local function disassemble_function(fn, fast)
 			if (_documentation.d and _documentation.d:len() > 0) or (_documentation["c/d"] and _documentation["c/d"]:len() > 0) then
 				instruction.D = bit.rshift(ins, 16)
 			end
+
+			doSpecialModeOperations(instruction, n)
 			getRegistersDocumentation(instruction, consts, upvalues)
-			getModesDocumentation(instruction, n)
 		else
+			doSpecialModeOperations(instruction, n)
 			instruction.C = bit.rshift(bit.band(ins, 0x00ff0000), 16)
 			instruction.B = bit.rshift(ins, 24)
 			instruction.A = bit.rshift(bit.band(ins, 0x0000ff00), 8)
@@ -322,7 +372,7 @@ local function get_function_declarations(fn, recursive)
 		-- function(...) <unreachable bytecode (from here)> end <-- we're here
 		if curIns.OP_CODE == INST.FNEW then
 			--consts also contains protos which are functions
-			local _proto = jit.util.funcinfo(data.consts[curIns.D])
+			local _proto = jit.util.funcinfo(data.consts[-curIns.D-1])
 			local location = {_start = _proto.linedefined,
 							_end = _proto.lastlinedefined}
 
@@ -337,7 +387,7 @@ local function get_function_declarations(fn, recursive)
 				--  _G[variable] = function(...) <unreachable bytecode (from here)> end
 				--     ^^^^^^^^ <-- we're here
 				if nextIns.OP_CODE == INST.GSET then
-					fName = data.consts[nextIns.D]
+					fName = data.consts[-nextIns.D-1]
 
 				-- found instruction creating a function in a table TSETS = Table
 				--[[ 	We got a Table Set instruction which mean we're already in a table
@@ -360,7 +410,7 @@ local function get_function_declarations(fn, recursive)
 
 						--]]
 				elseif nextIns.OP_CODE == INST.TSETS then
-					fName = data.consts[nextIns.C]
+					fName = data.consts[-nextIns.C-1]
 					-- starting to loop back to fetch the parrent table(s)
 					assert((pos - 1) > 0, "Error in instructions, expected TGETS or GGET but found nothing")
 					local modifier = -1
@@ -369,9 +419,9 @@ local function get_function_declarations(fn, recursive)
 
 					while (previousIns ~= nil) do
 						if previousIns.OP_CODE == INST.TGETS then
-							fName = data.consts[previousIns.C] .. "." .. fName
+							fName = data.consts[-previousIns.C-1] .. "." .. fName
 						elseif previousIns.OP_CODE == INST.GGET then
-							fName = data.consts[previousIns.D] .. "." .. fName
+							fName = data.consts[-previousIns.D-1] .. "." .. fName
 							endOfFunctionDeclaration = true
 							break
 						else
@@ -408,7 +458,7 @@ local function get_function_declarations(fn, recursive)
 				--symbols[fName] = location
 			end
 			if recursive then
-				local func = data.consts[curIns.D]
+				local func = data.consts[-curIns.D-1]
 				if jit.util.funcinfo(func).children == true then
 					for _, subFunctionDeclaration in ipairs(get_function_declarations(func, true)) do
 						table.insert(symbols, subFunctionDeclaration)
@@ -419,6 +469,10 @@ local function get_function_declarations(fn, recursive)
 		end
 		pos = pos + 1
 	end
+
+	-- jump at the end
+	pos = count
+
 	return symbols
 end
 
