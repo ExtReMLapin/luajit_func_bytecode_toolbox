@@ -525,14 +525,3 @@ end
 
 jit.getFileSymbols = fileGetSymbols
 
-
-local fn = loadfile("C:\\Users\\pfichepoil\\Desktop\\shit_code.lua")
-
-require("printtable")
-
-
---local tbl = get_function_declarations(fn, true)
-local tbl = fn:disassemble()
-
-PrintTable(tbl)
-
