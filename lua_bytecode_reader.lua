@@ -1,7 +1,7 @@
 assert(jit, "You're supposed to run this tool using LuaJIT, not Lua")
 --assert(jit.os == "Windows", "Only windows is supported ... for now")
 
-local RELEASE = false -- if we're releasing the .exe to dump symbols, CLI mode
+local RELEASE = true -- if we're releasing the .exe to dump symbols, CLI mode
 local DEBUG = false -- debug mode
 
 local tmp_documentation = {{op="ISLT",d="var",a="var",description="Jump if A < D",},{op="ISGE",d="var",a="var",description="Jump if A ≥ D",},{op="ISLE",d="var",a="var",description="Jump if A ≤ D",},{op="ISGT",d="var",a="var",description="Jump if A > D",},{op="ISEQV",d="var",a="var",description="Jump if A = D",},{op="ISNEV",d="var",a="var",description="Jump if A ≠ D",},{op="ISEQS",d="str",a="var",description="Jump if A = D",},{op="ISNES",d="str",a="var",description="Jump if A ≠ D",},{op="ISEQN",d="num",a="var",description="Jump if A = D",},{op="ISNEN",d="num",a="var",description="Jump if A ≠ D",},{op="ISEQP",d="pri",a="var",description="Jump if A = D",},{op="ISNEP",d="pri",a="var",description="Jump if A ≠ D",},{op="ISTC",d="var",a="dst",description="Copy D to A and jump",},{op="ISFC",d="var",a="dst",description="Copy D to A and jump",},{op="IST",d="var",a=" ",description="Jump if D is true",},{op="ISF",d="var",a=" ",description="Jump if D is false",},{op="MOV",d="var",a="dst",description="Copy D to A",},{op="NOT",d="var",a="dst",description="Set A to boolean not of D",},{op="UNM",d="var",a="dst",description="Set A to -D (unary minus)",},{op="LEN",d="var",a="dst",description="Set A to #D (object length)",},{op="ADDVN",a="dst",b="var",c="num",description="A = B + C",},{op="SUBVN",a="dst",b="var",c="num",description="A = B - C",},{op="MULVN",a="dst",b="var",c="num",description="A = B * C",},{op="DIVVN",a="dst",b="var",c="num",description="A = B / C",},{op="MODVN",a="dst",b="var",c="num",description="A = B % C",},{op="ADDNV",a="dst",b="var",c="num",description="A = C + B",},{op="SUBNV",a="dst",b="var",c="num",description="A = C - B",},{op="MULNV",a="dst",b="var",c="num",description="A = C * B",},{op="DIVNV",a="dst",b="var",c="num",description="A = C / B",},{op="MODNV",a="dst",b="var",c="num",description="A = C % B",},{op="ADDVV",a="dst",b="var",c="var",description="A = B + C",},{op="SUBVV",a="dst",b="var",c="var",description="A = B - C",},{op="MULVV",a="dst",b="var",c="var",description="A = B * C",},{op="DIVVV",a="dst",b="var",c="var",description="A = B / C",},{op="MODVV",a="dst",b="var",c="var",description="A = B % C",},{op="POW",a="dst",b="var",c="var",description="A = B ^ C",},{op="CAT",a="dst",b="rbase",c="rbase",description="A = B .. ~ .. C",},{op="KSTR",d="str",a="dst",description="Set A to string constant D",},{op="KCDATA",d="cdata",a="dst",description="Set A to cdata constant D",},{op="KSHORT",d="lits",a="dst",description="Set A to 16 bit signed integer D",},{op="KNUM",d="num",a="dst",description="Set A to number constant D",},{op="KPRI",d="pri",a="dst",description="Set A to primitive D",},{op="KNIL",d="base",a="base",description="Set slots A to D to nil",},{op="UGET",d="uv",a="dst",description="Set A to upvalue D",},{op="USETV",d="var",a="uv",description="Set upvalue A to D",},{op="USETS",d="str",a="uv",description="Set upvalue A to string constant D",},{op="USETN",d="num",a="uv",description="Set upvalue A to number constant D",},{op="USETP",d="pri",a="uv",description="Set upvalue A to primitive D",},{op="UCLO",d="jump",a="rbase",description="Close upvalues for slots ≥ rbase and jump to target D",},{op="FNEW",d="func",a="dst",description="Create new closure from prototype D and store it in A",},{op="TNEW",b="",["c/d"]="lit",a="dst",description="Set A to new table with size D (see below)",},{op="TDUP",b="",["c/d"]="tab",a="dst",description="Set A to duplicated template table D",},{op="GGET",b="",["c/d"]="str",a="dst",description="A = _G[D]",},{op="GSET",b="",["c/d"]="str",a="var",description="_G[D] = A",},{op="TGETV",b="var",["c/d"]="var",a="dst",description="A = B[C]",},{op="TGETS",b="var",["c/d"]="str",a="dst",description="A = B[C]",},{op="TGETB",b="var",["c/d"]="lit",a="dst",description="A = B[C]",},{op="TSETV",b="var",["c/d"]="var",a="var",description="B[C] = A",},{op="TSETS",b="var",["c/d"]="str",a="var",description="B[C] = A",},{op="TSETB",b="var",["c/d"]="lit",a="var",description="B[C] = A",},{op="TSETM",b="",["c/d"]="num*",a="base",description="(A-1)[D]",},{op="CALLM",b="lit",["c/d"]="lit",a="base",description="Call: A",},{op="CALL",b="lit",["c/d"]="lit",a="base",description="Call: A",},{op="CALLMT",b="",["c/d"]="lit",a="base",description="Tailcall: return A(A+1",},{op="CALLT",b="",["c/d"]="lit",a="base",description="Tailcall: return A(A+1",},{op="ITERC",b="lit",["c/d"]="lit",a="base",description="Call iterator: A",},{op="ITERN",b="lit",["c/d"]="lit",a="base",description="Specialized ITERC",},{op="VARG",b="lit",["c/d"]="lit",a="base",description="Vararg: A",},{op="ISNEXT",b="",["c/d"]="jump",a="base",description="Verify ITERN specialization and jump",},{op="RETM",d="lit",a="base",description="return A",},{op="RET",d="lit",a="rbase",description="return A",},{op="RET0",d="lit",a="rbase",description="return",},{op="RET1",d="lit",a="rbase",description="return A",},{op="FORI",d="jump",a="base",description="Numeric 'for' loop init",},{op="JFORI",d="jump",a="base",description="Numeric 'for' loop init",},{op="FORL",d="jump",a="base",description="Numeric 'for' loop",},{op="IFORL",d="jump",a="base",description="Numeric 'for' loop",},{op="JFORL",d="lit",a="base",description="Numeric 'for' loop",},{op="ITERL",d="jump",a="base",description="Iterator 'for' loop",},{op="IITERL",d="jump",a="base",description="Iterator 'for' loop",},{op="JITERL",d="lit",a="base",description="Iterator 'for' loop",},{op="LOOP",d="jump",a="rbase",description="Generic loop",},{op="ILOOP",d="jump",a="rbase",description="Generic loop",},{op="JLOOP",d="lit",a="rbase",description="Generic loop",},{op="JMP",d="jump",a="rbase",description="Jump",},{op="FUNCF",d="",a="rbase",description="Fixed-arg Lua function",},{op="IFUNCF",d="",a="rbase",description="Fixed-arg Lua function",},{op="JFUNCF",d="lit",a="rbase",description="Fixed-arg Lua function",},{op="FUNCV",d="",a="rbase",description="Vararg Lua function",},{op="IFUNCV",d="",a="rbase",description="Vararg Lua function",},{op="JFUNCV",d="lit",a="rbase",description="Vararg Lua function",},{op="FUNCC",d="",a="rbase",description="Pseudo-header for C functions",},{op="FUNCCW",d="",a="rbase",description="Pseudo-header for wrapped C functions",},}
@@ -23,6 +23,7 @@ local OPNAMES = {}
 
 -- for gmod, check your luajit version and import it manually
 local vmdef = require("jit.vmdef")
+
 local bcnames = vmdef.bcnames
 local INST = {}
 
@@ -164,7 +165,6 @@ local registersDocumentation = {
 }
 
 
-
 local instructionsModesActions = {
 	A = {
 
@@ -199,10 +199,14 @@ local function doSpecialModeOperations(instruction, n)
 
 end
 
+
+local disassembly_cache = {}
+
+
 --fn is the function
 --fast to true if you don't want any documentation and register filtering gives about 20-50% perf boost
-
 local function disassemble_function(fn, fast)
+	--if disassembly_cache[fn] then return disassembly_cache[fn] end
 	assert(fn, "function expected")
 	local fnTableData = jit.util.funcinfo(fn)
 	assert(fnTableData.loc, "expected a Lua function, not a C one")
@@ -325,6 +329,7 @@ local function disassemble_function(fn, fast)
 		upvalues = upvalues
 	}
 
+	disassembly_cache[fn] = ret
 	return ret
 end
 
@@ -416,7 +421,7 @@ local function get_function_declarations(fn, recursive)
 						--]]
 				elseif nextIns.OP_CODE == INST.TSETS then
 					fName = data.consts[-nextIns.C-1]
-					-- starting to loop back to fetch the parrent table(s)
+					-- starting to loop back to fetch the parent table(s)
 					assert((pos - 1) > 0, "Error in instructions, expected TGETS or GGET but found nothing")
 					local modifier = -1
 					local previousIns = data.instructions[pos + modifier]
@@ -463,6 +468,7 @@ local function get_function_declarations(fn, recursive)
 				--symbols[fName] = location
 			end
 			if recursive then
+
 				local func = data.consts[-curIns.D-1]
 				if jit.util.funcinfo(func).children == true then
 					for _, subFunctionDeclaration in ipairs(get_function_declarations(func, true)) do
@@ -474,42 +480,116 @@ local function get_function_declarations(fn, recursive)
 		end
 		pos = pos + 1
 	end
-
---[[	-- jump at the end
-	pos = count
-	local curIns = data.instructions[pos]
-	-- we want to see if the file returns a table
-	if curIns.OP_CODE ~= INST.RET1 then return symbols end
-	local returnedElement = data.consts[-curIns.A-1]
-	print(returnedElement)
-	if type(returnedElement) == "table" then
-		print("yes")
-
-	end]]
-
-
-
 	return symbols
 end
+
+
+
+--[[ find all the global calls in a function
+	for more documentation, read the function above, i stripped most of the tech
+	explainations from this one as it's pretty much a copy/paste from the function above
+]]
+local function get_non_local_function_call(fn, recursive)
+	assert(fn, "function expected")
+	local calls = {}
+	local debugData = jit.util.funcinfo(fn)
+	local data = data or disassemble_function(fn, not DEBUG)
+	local pos = 1
+	local count = #data.instructions
+	while (pos <= count) do
+		local curIns = data.instructions[pos]
+
+		if curIns.OP_CODE == INST.CALL then
+			--consts also contains protos which are functions
+			local fName;
+			-- if we're not at the start of a function
+			if pos ~= 1 then
+				local prevIns = data.instructions[pos - 1]
+				if prevIns.OP_CODE == INST.GGET then
+					fName = data.consts[-prevIns.D-1]
+				elseif prevIns.OP_CODE == INST.TGETS then
+					fName = data.consts[-prevIns.C-1]
+					-- starting to loop back to fetch the parent table(s)
+					assert((pos - 1) > 0, "Error in instructions, expected TGETS or GGET but found nothing")
+					local modifier = - 2 -- we're already looking behind the current instruction being CALL
+					local previousIns = data.instructions[pos + modifier]
+					local endOfFunctionDeclaration = false
+
+					while (previousIns ~= nil) do
+						if previousIns.OP_CODE == INST.TGETS then
+							fName = data.consts[-previousIns.C-1] .. "." .. fName
+						elseif previousIns.OP_CODE == INST.GGET then
+							fName = data.consts[-previousIns.D-1] .. "." .. fName
+							endOfFunctionDeclaration = true
+							break
+						else
+							fName = nil
+							break
+						end
+						modifier = modifier - 1
+						previousIns = data.instructions[pos + modifier]
+					end
+					if not endOfFunctionDeclaration then
+						fName = nil
+					end
+				end
+			else
+				break
+			end
+			-- local functions use FNEW but doesn't report any name
+			if fName then
+				local twoDot = debugData.loc:find(":")
+				if (twoDot) then debugData.loc = debugData.loc:sub(1, twoDot-1) end
+				local location = {_start = debugData.linedefined, _end = debugData.lastlinedefined, file =  debugData.loc}
+				location.name = fName
+				table.insert(calls, location)
+			end
+			if recursive and jit.util.funcinfo(fn).children == true then
+				for k, v in pairs(data.consts) do
+					if type(v) == "proto" then
+						for _, subFunctionDeclaration in ipairs(get_non_local_function_call(v, true)) do
+							table.insert(calls, subFunctionDeclaration)
+						end
+					end
+				end
+			end
+
+		end
+		pos = pos + 1
+	end
+	return calls
+end
+
 
 local function fileGetSymbols(path, recursive, skip_issues)
 	assert(path, "path expected")
 	local func = loadfile(path)
-
 	if not func then
-		if skip_issues then
-			return {}
-		else
-			return
-		end
+		print("ERROR READING" .. path)
+		return {}
 	end
 
 	if not jit.util.funcinfo(func).children then return {} end
 	local ret = get_function_declarations(func, recursive)
+	local loc = jit.util.funcinfo(func).loc
+	local twoDot = loc:find(":")
+	if (twoDot) then loc = loc:sub(1, twoDot-1) end
+	return ret, loc
+end
+
+local function fileGetGlobalCalls(path, recursive)
+	assert(path, "path expected")
+	local func = loadfile(path)
+
+	if not func then
+		print("ERROR READING " .. path)
+		return {}
+	end
+
+	local ret = get_non_local_function_call(func, recursive)
 
 	return ret
 end
-
 
 local a = debug.getmetatable(disassemble_function) or {}
 a.__index = a.__index or a -- assuming __index is not a function
@@ -538,31 +618,111 @@ end
 
 jit.getFileSymbols = fileGetSymbols
 
+local function findLocalizableFunctions(files)
+	local declarations = {}
+
+	for _, file in ipairs(files) do
+		local reportDeclarations, location = fileGetSymbols(file, true)
+
+		for _, functionsData in ipairs(reportDeclarations) do
+			-- prevent table re-creation if multiple global funcs with same name
+			if not declarations[functionsData.name] then
+				declarations[functionsData.name] = {
+					file = location,
+					_start = functionsData._start,
+					_end = functionsData._end
+				}
+			end
+		end
+	end
+
+	for _, file in ipairs(files) do
+		local reportCalls = fileGetGlobalCalls(file, true)
+
+		for _, functionsData in ipairs(reportCalls) do
+			if declarations[functionsData.name] then
+				if declarations[functionsData.name].file ~= functionsData.file then
+					declarations[functionsData.name] = nil
+				else
+					declarations[functionsData.name].localCalled = true
+				end
+			end
+		end
+	end
+
+	-- some lua function that are not called at all may be called from c++ so remove them from the list
+	for k, v in pairs(declarations) do
+		if v.localCalled == nil then
+			declarations[k] = nil
+		else
+			v.localCalled = nil
+		end
+	end
+
+	return declarations
+end
+
 if RELEASE then
-	assert(#arg > 0, "First argument has to be the absolute file path to get the symbols from")
 
-	if #arg == 1 then
-		local tbl = fileGetSymbols(arg[1], true, true)
-		for k, v in pairs(tbl) do
-			print(v.name, v._start .. ":" .. v._end)
-		end
-		if tbl == nil then
-			print("ERROR")
+	local commands = {
+			["--symbols"] = function ()
+			if #arg == 1 then
+				local tbl = fileGetSymbols(arg[1], true, true)
 
-			return
+				for k, v in pairs(tbl) do
+					print(v.name, v._start .. ":" .. v._end)
+				end
+				return
+			end
+
+			local i = 1
+			local max = #arg
+
+			while (i <= max) do
+				local tbl = fileGetSymbols(arg[i], true)
+
+				for k, v in pairs(tbl) do
+					print(arg[i], v.name, v._start .. ":" .. v._end)
+				end
+
+				i = i + 1
+			end
+		end,
+
+		["--localizable-funcs"] = function()
+
+			local tbl = findLocalizableFunctions(arg)
+			if next(tbl) == nil then
+				print("Good job :D, no issue found !")
+			else
+				for k, v in pairs(tbl) do
+					print(v.file, k, v._start)
+
+				end
+			end
+
 		end
-		return
+
+
+	}
+
+	while ((#arg ~= 0) and not commands[arg[1]]) do
+		table.remove(arg, 1)
 	end
 
-	local i = 1
-	local max = #arg
-
-	while (i <= max) do
-		local tbl = fileGetSymbols(arg[i], true)
-		for k, v in pairs(tbl) do
-			print(arg[i], v.name, v._start .. ":" .. v._end)
+	if (#arg == 0) then
+		print("usage : lua_toolbox [command] [file(s)] ")
+		print("\tCommands : ")
+		for k, v in pairs(commands) do
+			print("\t\t" .. k)
 		end
-		i = i + 1
+	else
+		assert(#arg > 1, "Missing file(s)")
+		local command = arg[1]
+		table.remove(arg, 1)
+		commands[command]()
 	end
+
 
 end
+
