@@ -174,8 +174,8 @@ local instructionsModesActions = {
 	},
 	C = {
 		[BCMode.BCMjump] = function(instruction, n)
-				-- the position to jump is relative to the current instruction
-				-- I should probably refactor this into a conditional table
+			-- the position to jump is relative to the current instruction
+			-- I should probably refactor this into a conditional table
 			instruction.D = instruction.D - 0x7fff + n
 		end,
 	}
@@ -188,6 +188,7 @@ local function getRegistersDocumentation(instruction, consts, upvalues)
 end
 
 
+-- ghetto loop unrolling, i should probably find a better function name for this
 local function doSpecialModeOperations(instruction, n)
 	local fn;
 	fn = instructionsModesActions.A[instruction.OP_MODES.CODE.A]
@@ -196,7 +197,6 @@ local function doSpecialModeOperations(instruction, n)
 	if fn then fn(instruction, n) end
 	fn = instructionsModesActions.C[instruction.OP_MODES.CODE.C]
 	if fn then fn(instruction, n) end
-
 end
 
 
@@ -211,22 +211,14 @@ local function disassemble_function(fn, fast)
 	local fnTableData = jit.util.funcinfo(fn)
 	assert(fnTableData.loc, "expected a Lua function, not a C one")
 
-	
-
 	local nUpValues = jit.util.funcinfo(fn).upvalues
 	local upvalues = {}
 	local nFoundUpvalues = 0
 	local n = 0
-	
-
-	--[[while (upvalue ~= nil) do
-		upvalues[n] = upvalue
-		n = n + 1
-		upvalue = jit.util.funcuvname(fn, n)
-	end]] -- the nconst bug probably exists aswell for the upvalues
 
 	while (nFoundUpvalues ~= nUpValues) do
 		local upvalue = jit.util.funcuvname(fn, n)
+
 		if (upvalue ~= nil) then
 			upvalues[nFoundUpvalues] = upvalue
 			nFoundUpvalues = nFoundUpvalues + 1
@@ -234,12 +226,17 @@ local function disassemble_function(fn, fast)
 		n = n + 1
 	end
 
-
+	--[[
+		Mike Pall is a cheeky boy, nConst are stored from zero (included)
+		while all others const variables like strings, protos (functions) and
+		tables prototypes (things like `local tbl = {tata = 4, toto = true}`)
+		are stored from zero to -n, n being the number of non-nConst consts
+		Yes, it's a mess but LuaJIT is faster se we can't really complain.
+		 
+	]]
 	local nConsts = jit.util.funcinfo(fn).nconsts
 	local consts = {}
 	n = nConsts-1
-	local nFoundNumberConsts = 0
-	local nFoundConsts = 0
 
 	--[[]] -- fixing a luajit bug, -1 address returns const nil but 0 addres returns a correct const
 	local value = jit.util.funck(fn, n)
@@ -311,7 +308,6 @@ local function disassemble_function(fn, fast)
 			doSpecialModeOperations(instruction, n)
 			getRegistersDocumentation(instruction, consts, upvalues)
 		else
-			
 			instruction.C = bit.rshift(bit.band(ins, 0x00ff0000), 16)
 			instruction.B = bit.rshift(ins, 24)
 			instruction.A = bit.rshift(bit.band(ins, 0x0000ff00), 8)
@@ -374,19 +370,23 @@ local function get_function_declarations(fn, recursive)
 	local data = disassemble_function(fn, not DEBUG)
 	local pos = 1
 	local count = #data.instructions
+
 	while (pos <= count) do
 		local curIns = data.instructions[pos]
+
 		-- new closure (function ?)
-
-
 		-- function(...) <unreachable bytecode (from here)> end <-- we're here
 		if curIns.OP_CODE == INST.FNEW then
 			--consts also contains protos which are functions
-			local _proto = jit.util.funcinfo(data.consts[-curIns.D-1])
-			local location = {_start = _proto.linedefined,
-							_end = _proto.lastlinedefined}
+			local _proto = jit.util.funcinfo(data.consts[-curIns.D - 1])
 
-			local fName;
+			local location = {
+				_start = _proto.linedefined,
+				_end = _proto.lastlinedefined
+			}
+
+			local fName
+
 			-- if we're not at the end of the function
 			if pos + 1 ~= count then
 				local nextIns = data.instructions[pos + 1]
@@ -397,13 +397,12 @@ local function get_function_declarations(fn, recursive)
 				--  _G[variable] = function(...) <unreachable bytecode (from here)> end
 				--     ^^^^^^^^ <-- we're here
 				if nextIns.OP_CODE == INST.GSET then
-					fName = data.consts[-nextIns.D-1]
-
-				-- found instruction creating a function in a table TSETS = Table
-				--[[ 	We got a Table Set instruction which mean we're already in a table
+					fName = data.consts[-nextIns.D - 1]
+					-- found instruction creating a function in a table TSETS = Table
+					--[[ 	We got a Table Set instruction which mean we're already in a table
 						and we need to find which one(s) by browsing the instructions before the FNEW instruction
 						We should meet one or zero TGETS because we're doing potentiable table lookups
-						
+
 						Ex : 
 						    Global Lookup [GGET]
 						            ^
@@ -420,7 +419,7 @@ local function get_function_declarations(fn, recursive)
 
 						--]]
 				elseif nextIns.OP_CODE == INST.TSETS then
-					fName = data.consts[-nextIns.C-1]
+					fName = data.consts[-nextIns.C - 1]
 					-- starting to loop back to fetch the parent table(s)
 					assert((pos - 1) > 0, "Error in instructions, expected TGETS or GGET but found nothing")
 					local modifier = -1
@@ -429,25 +428,29 @@ local function get_function_declarations(fn, recursive)
 
 					while (previousIns ~= nil) do
 						if previousIns.OP_CODE == INST.TGETS then
-							fName = data.consts[-previousIns.C-1] .. "." .. fName
+							fName = data.consts[-previousIns.C - 1] .. "." .. fName
 						elseif previousIns.OP_CODE == INST.GGET then
-							fName = data.consts[-previousIns.D-1] .. "." .. fName
+							fName = data.consts[-previousIns.D - 1] .. "." .. fName
 							endOfFunctionDeclaration = true
 							break
 						else
 							if DEBUG then
 								print("Unexpected instruction : " .. OPNAMES[previousIns.OP_CODE])
 							end
+
 							fName = nil
 							break
 						end
+
 						modifier = modifier - 1
 						previousIns = data.instructions[pos + modifier]
 					end
+
 					if not endOfFunctionDeclaration then
 						if DEBUG then
 							print("Missing instruction GGET for getting global table")
 						end
+
 						fName = nil
 					end
 				else
@@ -459,27 +462,31 @@ local function get_function_declarations(fn, recursive)
 				if DEBUG then
 					print("break")
 				end
+
 				break
 			end
+
 			-- local functions use FNEW but doesn't report any name
 			if fName then
 				location.name = fName
 				table.insert(symbols, location)
 				--symbols[fName] = location
 			end
-			if recursive then
 
-				local func = data.consts[-curIns.D-1]
+			if recursive then
+				local func = data.consts[-curIns.D - 1]
+
 				if jit.util.funcinfo(func).children == true then
 					for _, subFunctionDeclaration in ipairs(get_function_declarations(func, true)) do
 						table.insert(symbols, subFunctionDeclaration)
 					end
 				end
 			end
-
 		end
+
 		pos = pos + 1
 	end
+
 	return symbols
 end
 
@@ -496,39 +503,44 @@ local function get_non_local_function_call(fn, recursive)
 	local data = data or disassemble_function(fn, not DEBUG)
 	local pos = 1
 	local count = #data.instructions
+
 	while (pos <= count) do
 		local curIns = data.instructions[pos]
 
 		if curIns.OP_CODE == INST.CALL then
 			--consts also contains protos which are functions
-			local fName;
+			local fName
+
 			-- if we're not at the start of a function
 			if pos ~= 1 then
 				local prevIns = data.instructions[pos - 1]
+
 				if prevIns.OP_CODE == INST.GGET then
-					fName = data.consts[-prevIns.D-1]
+					fName = data.consts[-prevIns.D - 1]
 				elseif prevIns.OP_CODE == INST.TGETS then
-					fName = data.consts[-prevIns.C-1]
+					fName = data.consts[-prevIns.C - 1]
 					-- starting to loop back to fetch the parent table(s)
 					assert((pos - 1) > 0, "Error in instructions, expected TGETS or GGET but found nothing")
-					local modifier = - 2 -- we're already looking behind the current instruction being CALL
+					local modifier = -2 -- we're already looking behind the current instruction being CALL
 					local previousIns = data.instructions[pos + modifier]
 					local endOfFunctionDeclaration = false
 
 					while (previousIns ~= nil) do
 						if previousIns.OP_CODE == INST.TGETS then
-							fName = data.consts[-previousIns.C-1] .. "." .. fName
+							fName = data.consts[-previousIns.C - 1] .. "." .. fName
 						elseif previousIns.OP_CODE == INST.GGET then
-							fName = data.consts[-previousIns.D-1] .. "." .. fName
+							fName = data.consts[-previousIns.D - 1] .. "." .. fName
 							endOfFunctionDeclaration = true
 							break
 						else
 							fName = nil
 							break
 						end
+
 						modifier = modifier - 1
 						previousIns = data.instructions[pos + modifier]
 					end
+
 					if not endOfFunctionDeclaration then
 						fName = nil
 					end
@@ -536,14 +548,25 @@ local function get_non_local_function_call(fn, recursive)
 			else
 				break
 			end
+
 			-- local functions use FNEW but doesn't report any name
 			if fName then
 				local twoDot = debugData.loc:find(":")
-				if (twoDot) then debugData.loc = debugData.loc:sub(1, twoDot-1) end
-				local location = {_start = debugData.linedefined, _end = debugData.lastlinedefined, file =  debugData.loc}
+
+				if (twoDot) then
+					debugData.loc = debugData.loc:sub(1, twoDot - 1)
+				end
+
+				local location = {
+					_start = debugData.linedefined,
+					_end = debugData.lastlinedefined,
+					file = debugData.loc
+				}
+
 				location.name = fName
 				table.insert(calls, location)
 			end
+
 			if recursive and jit.util.funcinfo(fn).children == true then
 				for k, v in pairs(data.consts) do
 					if type(v) == "proto" then
@@ -553,10 +576,11 @@ local function get_non_local_function_call(fn, recursive)
 					end
 				end
 			end
-
 		end
+
 		pos = pos + 1
 	end
+
 	return calls
 end
 
@@ -577,6 +601,7 @@ local function fileGetSymbols(path, recursive, skip_issues)
 	return ret, loc
 end
 
+
 local function fileGetGlobalCalls(path, recursive)
 	assert(path, "path expected")
 	local func = loadfile(path)
@@ -591,32 +616,6 @@ local function fileGetGlobalCalls(path, recursive)
 	return ret
 end
 
-local a = debug.getmetatable(disassemble_function) or {}
-a.__index = a.__index or a -- assuming __index is not a function
-local meta = a.__index -- when doing func.disassemble it's calling __index
-
-
-
-debug.setmetatable(disassemble_function, a)
-function meta.disassemble(...)
-	return disassemble_function(...)
-end
-
-debug.setmetatable(hasJITInstruction, a)
-
-function meta.isJITed(...)
-	return hasJITInstruction(...)
-end
-
-
-debug.setmetatable(JITLevel, a)
-
-function meta.getJITLevel(...)
-	return JITLevel(...)
-end
-
-
-jit.getFileSymbols = fileGetSymbols
 
 local function findLocalizableFunctions(files)
 	local declarations = {}
@@ -662,16 +661,45 @@ local function findLocalizableFunctions(files)
 	return declarations
 end
 
-if RELEASE then
+local a = debug.getmetatable(disassemble_function) or {}
+a.__index = a.__index or a -- assuming __index is not a function
+local meta = a.__index -- when doing func.disassemble it's calling __index
 
+
+
+debug.setmetatable(disassemble_function, a)
+function meta.disassemble(...)
+	return disassemble_function(...)
+end
+
+debug.setmetatable(hasJITInstruction, a)
+
+function meta.isJITed(...)
+	return hasJITInstruction(...)
+end
+
+
+debug.setmetatable(JITLevel, a)
+
+function meta.getJITLevel(...)
+	return JITLevel(...)
+end
+
+
+jit.getFileSymbols = fileGetSymbols
+
+
+
+if RELEASE then
 	local commands = {
-			["--symbols"] = function ()
+		["--symbols"] = function()
 			if #arg == 1 then
 				local tbl = fileGetSymbols(arg[1], true, true)
 
 				for k, v in pairs(tbl) do
 					print(v.name, v._start .. ":" .. v._end)
 				end
+
 				return
 			end
 
@@ -688,22 +716,17 @@ if RELEASE then
 				i = i + 1
 			end
 		end,
-
 		["--localizable-funcs"] = function()
-
 			local tbl = findLocalizableFunctions(arg)
+
 			if next(tbl) == nil then
 				print("Good job :D, no issue found !")
 			else
 				for k, v in pairs(tbl) do
 					print(v.file, k, v._start)
-
 				end
 			end
-
 		end
-
-
 	}
 
 	while ((#arg ~= 0) and not commands[arg[1]]) do
@@ -713,6 +736,7 @@ if RELEASE then
 	if (#arg == 0) then
 		print("usage : lua_toolbox [command] [file(s)] ")
 		print("\tCommands : ")
+
 		for k, v in pairs(commands) do
 			print("\t\t" .. k)
 		end
@@ -722,7 +746,4 @@ if RELEASE then
 		table.remove(arg, 1)
 		commands[command]()
 	end
-
-
 end
-
