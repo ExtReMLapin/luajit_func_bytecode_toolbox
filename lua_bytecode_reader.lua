@@ -1,5 +1,5 @@
 assert(jit, "You're supposed to run this tool using LuaJIT, not Lua")
---assert(jit.os == "Windows", "Only windows is supported ... for now")
+assert(jit.version == "LuaJIT 2.1.0-beta3", "Please use LuaJIT 2.1.0-beta3 or update manually the hardcoded bytecode")
 
 local RELEASE = true -- if we're releasing the .exe to dump symbols, CLI mode
 local DEBUG = false -- debug mode
@@ -22,9 +22,13 @@ jit.util = jit.util or require("jit.util")
 local OPNAMES = {}
 
 -- for gmod, check your luajit version and import it manually
-local vmdef = require("jit.vmdef")
+-- hardcoding it because of reasons
+--local vmdef = require("jit.vmdef")
+--local bcnames = vmdef.bcnames
 
-local bcnames = vmdef.bcnames
+local bcnames = "ISLT  ISGE  ISLE  ISGT  ISEQV ISNEV ISEQS ISNES ISEQN ISNEN ISEQP ISNEP ISTC  ISFC  IST   ISF   ISTYPEISNUM MOV   NOT   UNM   LEN   ADDVN SUBVN MULVN DIVVN MODVN ADDNV SUBNV MULNV DIVNV MODNV ADDVV SUBVV MULVV DIVVV MODVV POW   CAT   KSTR  KCDATAKSHORTKNUM  KPRI  KNIL  UGET  USETV USETS USETN USETP UCLO  FNEW  TNEW  TDUP  GGET  GSET  TGETV TGETS TGETB TGETR TSETV TSETS TSETB TSETM TSETR CALLM CALL  CALLMTCALLT ITERC ITERN VARG  ISNEXTRETM  RET   RET0  RET1  FORI  JFORI FORL  IFORL JFORL ITERL IITERLJITERLLOOP  ILOOP JLOOP JMP   FUNCF IFUNCFJFUNCFFUNCV IFUNCVJFUNCVFUNCC FUNCCW"
+
+
 local INST = {}
 
 do
