@@ -26,8 +26,16 @@ local OPNAMES = {}
 --local vmdef = require("jit.vmdef")
 --local bcnames = vmdef.bcnames
 
-local bcnames = "ISLT  ISGE  ISLE  ISGT  ISEQV ISNEV ISEQS ISNES ISEQN ISNEN ISEQP ISNEP ISTC  ISFC  IST   ISF   ISTYPEISNUM MOV   NOT   UNM   LEN   ADDVN SUBVN MULVN DIVVN MODVN ADDNV SUBNV MULNV DIVNV MODNV ADDVV SUBVV MULVV DIVVV MODVV POW   CAT   KSTR  KCDATAKSHORTKNUM  KPRI  KNIL  UGET  USETV USETS USETN USETP UCLO  FNEW  TNEW  TDUP  GGET  GSET  TGETV TGETS TGETB TGETR TSETV TSETS TSETB TSETM TSETR CALLM CALL  CALLMTCALLT ITERC ITERN VARG  ISNEXTRETM  RET   RET0  RET1  FORI  JFORI FORL  IFORL JFORL ITERL IITERLJITERLLOOP  ILOOP JLOOP JMP   FUNCF IFUNCFJFUNCFFUNCV IFUNCVJFUNCVFUNCC FUNCCW"
+local bcnames;
 
+
+-- i'm harcoding it so you don't need any external configured/installed stuff like LUA_PATH
+if jit.version == "LuaJIT 2.1.0-beta3" then
+	bcnames = "ISLT  ISGE  ISLE  ISGT  ISEQV ISNEV ISEQS ISNES ISEQN ISNEN ISEQP ISNEP ISTC  ISFC  IST   ISF   ISTYPEISNUM MOV   NOT   UNM   LEN   ADDVN SUBVN MULVN DIVVN MODVN ADDNV SUBNV MULNV DIVNV MODNV ADDVV SUBVV MULVV DIVVV MODVV POW   CAT   KSTR  KCDATAKSHORTKNUM  KPRI  KNIL  UGET  USETV USETS USETN USETP UCLO  FNEW  TNEW  TDUP  GGET  GSET  TGETV TGETS TGETB TGETR TSETV TSETS TSETB TSETM TSETR CALLM CALL  CALLMTCALLT ITERC ITERN VARG  ISNEXTRETM  RET   RET0  RET1  FORI  JFORI FORL  IFORL JFORL ITERL IITERLJITERLLOOP  ILOOP JLOOP JMP   FUNCF IFUNCFJFUNCFFUNCV IFUNCVJFUNCVFUNCC FUNCCW"
+else
+	-- if LUA_PATH isn't configured then you're out of luck
+	bcnames = require("jit.vmdef").bcnames
+end
 
 local INST = {}
 
@@ -210,7 +218,7 @@ local disassembly_cache = {}
 --fn is the function
 --fast to true if you don't want any documentation and register filtering gives about 20-50% perf boost
 local function disassemble_function(fn, fast)
-	--if disassembly_cache[fn] then return disassembly_cache[fn] end
+	if disassembly_cache[fn] then return disassembly_cache[fn] end
 	assert(fn, "function expected")
 	local fnTableData = jit.util.funcinfo(fn)
 	assert(fnTableData.loc, "expected a Lua function, not a C one")
@@ -275,6 +283,7 @@ local function disassemble_function(fn, fast)
 
 		local instruction = {}
 		instruction.OP_CODE = bit.band(ins, 0xFF)
+		instruction.line = jit.util.funcinfo(fn, n+1).currentline
 		instruction.OP_MODES = {}
 		instruction.OP_MODES.CODE = {
 				A = modeA,
@@ -672,6 +681,7 @@ local meta = a.__index -- when doing func.disassemble it's calling __index
 
 
 debug.setmetatable(disassemble_function, a)
+
 function meta.disassemble(...)
 	return disassemble_function(...)
 end
@@ -691,8 +701,6 @@ end
 
 
 jit.getFileSymbols = fileGetSymbols
-
-
 
 if RELEASE then
 	local commands = {
