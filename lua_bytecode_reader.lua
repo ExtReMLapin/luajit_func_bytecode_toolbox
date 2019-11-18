@@ -1,5 +1,5 @@
 assert(jit, "You're supposed to run this tool using LuaJIT, not Lua")
-assert(jit.version == "LuaJIT 2.1.0-beta3", "Please use LuaJIT 2.1.0-beta3 or update manually the hardcoded bytecode")
+assert(jit.version == "LuaJIT 2.1.0-beta3", "Please use LuaJIT 2.1.0-beta3")
 
 local RELEASE = true -- if we're releasing the .exe to dump symbols, CLI mode
 local DEBUG = false -- debug mode
@@ -112,6 +112,25 @@ local JIT_INST = {
 	[INST.JFUNCV] = true
 }
 
+local JIT_INCOMPATIBLE_INS = {
+	-- syntax : I[name of instruction];
+	-- I stands for INTERPRETER force mode
+	[INST.IFORL] = true,
+	[INST.IITERL] = true,
+	[INST.ILOOP] = true,
+	[INST.IFUNCF] = true,
+	[INST.IFUNCV] = true,
+	[INST.ITERN] = true,
+	[INST.ISNEXT] = true, -- implies intern
+	[INST.UCLO] = true,
+	[INST.FNEW] = true -- created a new closure (like a function) on the fly, clearly cannot be jit compiled
+}
+
+local JIT_STICH_INS = {
+	[INST.FUNCC] = true,
+	[INST.FUNCCW] = true
+}
+
 local functions_headers = {
 	[INST.FUNCF] = true,
 	[INST.IFUNCF] = true,
@@ -120,38 +139,36 @@ local functions_headers = {
 	[INST.IFUNCV] = true,
 	[INST.JFUNCV] = true,
 	[INST.FUNCC] = true,
-	[INST.FUNCCW] = true,
-	--[INST["FUNC*"]] = true
+	[INST.FUNCCW] = true
 }
-
 
 local registersDocumentation = {
 	[INST.GGET] = function(instruction, consts)
-		instruction.A_value = consts[-instruction.D-1]
+		instruction.A_value = consts[-instruction.D - 1]
 	end,
-	[INST.UGET] = function(instruction, consts, upvalues)
+	[INST.UGET] = function(instruction, _, upvalues)
 		instruction.A_value = upvalues[instruction.D]
 	end,
 	[INST.TGETS] = function(instruction, consts)
-		instruction.A_value = "curTable[\""..  consts[-instruction.C-1] .. "\"]"
+		instruction.A_value = "curTable[\"" .. consts[-instruction.C - 1] .. "\"]"
 	end,
 	[INST.FNEW] = function(instruction, consts)
-		instruction.A_value = tostring(consts[-instruction.D-1])
+		instruction.A_value = tostring(consts[-instruction.D - 1])
 	end,
 	[INST.TSETS] = function(instruction, consts)
-		instruction["curTable[\""..  consts[-instruction.C-1] .. "\"]"] = "A"
+		instruction["curTable[\"" .. consts[-instruction.C - 1] .. "\"]"] = "A"
 	end,
 	[INST.GSET] = function(instruction, consts)
-		instruction.DO = "_G[\""..  tostring(consts[-instruction.C-1]) .. "\"] = A"
+		instruction.DO = "_G[\"" .. tostring(consts[-instruction.C - 1]) .. "\"] = A"
 	end,
-	[INST.UCLO] = function(instruction, consts)
+	[INST.UCLO] = function(instruction)
 		instruction.DO = string.format("Close upvalies for slots >= %i and jump to instruction %i", instruction.A, instruction.D)
 	end,
 	[INST.KSTR] = function(instruction, consts)
-		instruction.DO = string.format("stack[%i] = \"%s\"", instruction.A, tostring(consts[-instruction.D-1]))
+		instruction.DO = string.format("stack[%i] = \"%s\"", instruction.A, tostring(consts[-instruction.D - 1]))
 	end,
 	[INST.KCDATA] = function(instruction, consts)
-		instruction.DO = string.format("stack[%i] = %s", instruction.A, tostring(consts[-instruction.D-1]))
+		instruction.DO = string.format("stack[%i] = %s", instruction.A, tostring(consts[-instruction.D - 1]))
 	end,
 	[INST.KSHORT] = function(instruction)
 		instruction.DO = string.format("stack[%i] = %s", instruction.A, instruction.D)
@@ -165,17 +182,18 @@ local registersDocumentation = {
 	[INST.KNIL] = function(instruction)
 		local outTable = {}
 		local start = instruction.A
+
 		while start <= instruction.D do
 			table.insert(outTable, string.format("stack[%i] = nil", start))
 			start = start + 1
 		end
+
 		instruction.DO = table.concat(outTable, "\n")
 	end,
 	[INST.TNEW] = function(instruction)
 		instruction.DO = string.format("stack[%i] = {} -- size custom", instruction.A)
 	end
 }
-
 
 local instructionsModesActions = {
 	A = {
@@ -377,7 +395,7 @@ end
 
 
 -- returns a table of all declared non-local functions, enable recursive to check inside functions
-local function get_function_declarations(fn, recursive)
+local function get_non_local_function_declarations(fn, recursive)
 	assert(fn, "function expected")
 	local symbols = {}
 	local data = disassemble_function(fn, not DEBUG)
@@ -490,7 +508,7 @@ local function get_function_declarations(fn, recursive)
 				local func = data.consts[-curIns.D - 1]
 
 				if jit.util.funcinfo(func).children == true then
-					for _, subFunctionDeclaration in ipairs(get_function_declarations(func, true)) do
+					for _, subFunctionDeclaration in ipairs(get_non_local_function_declarations(funcnon_local_, true)) do
 						table.insert(symbols, subFunctionDeclaration)
 					end
 				end
@@ -607,7 +625,7 @@ local function fileGetSymbols(path, recursive, skip_issues)
 	end
 
 	if not jit.util.funcinfo(func).children then return {} end
-	local ret = get_function_declarations(func, recursive)
+	local ret = get_non_local_function_declarations(func, recursive)
 	local loc = jit.util.funcinfo(func).loc
 	local twoDot = loc:find(":")
 	if (twoDot) then loc = loc:sub(1, twoDot-1) end
@@ -758,4 +776,19 @@ if RELEASE then
 		table.remove(arg, 1)
 		commands[command]()
 	end
+else
+	return {
+			functions = {
+				disassemble_function = disassemble_function,
+				has_JIT_Instruction = hasJITInstruction,
+				get_JIT_Level = JITLevel,
+				get_non_local_function_declarations = get_non_local_function_declarations,
+				get_non_local_function_call = get_non_local_function_call
+			},
+			files = {
+				fileGetSymbols = fileGetSymbols,
+				fileGetGlobalCalls = fileGetGlobalCalls,
+				findLocalizableFunctions = findLocalizableFunctions
+			}
+		}
 end
