@@ -377,22 +377,22 @@ end
 
 -- basically counting the number of JIT bytecode instructions
 local function JITLevel(fn)
-	local instructions = 0
 	local countBC = jit.util.funcinfo(fn).bytecodes
+	local countNonJITable = 0
 	local n = 1
+
 	while (n < countBC) do
-		local ins = bit.band( jit.util.funcbc(fn, n), 0xFF)
-		if JIT_INST[ins] then
-			instructions = instructions + 1
+		local ins = bit.band(jit.util.funcbc(fn, n), 0xFF)
+
+		if JIT_INCOMPATIBLE_INS[ins] then
+			countNonJITable = countNonJITable + 1
 		end
+
 		n = n + 1
 	end
 
-	return instructions
-
-
+	return (countBC - countNonJITable) / countBC * 100
 end
-
 
 -- returns a table of all declared non-local functions, enable recursive to check inside functions
 local function get_non_local_function_declarations(fn, recursive)
@@ -718,6 +718,20 @@ function meta.getJITLevel(...)
 end
 
 
+local tbl = {4,4,4,4,44,4,4,4,4,44,4,4,44,4,4,4,4,4,654,564,564,654,654,89,7,42,123,16,54,65,4165,4,564,564,1,321,65,46,132}
+
+local function potato()
+	local key = next(tbl)
+	while (true) do
+		if not key then break end
+		key = next(tbl, key)
+	end
+
+end
+
+
+
+do return end
 jit.getFileSymbols = fileGetSymbols
 
 if RELEASE then
