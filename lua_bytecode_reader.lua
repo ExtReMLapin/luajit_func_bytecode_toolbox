@@ -717,9 +717,6 @@ function meta.getJITLevel(...)
 	return JITLevel(...)
 end
 
-
-
-do return end
 jit.getFileSymbols = fileGetSymbols
 
 if RELEASE then
