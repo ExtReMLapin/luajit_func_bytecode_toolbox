@@ -718,18 +718,6 @@ function meta.getJITLevel(...)
 end
 
 
-local tbl = {4,4,4,4,44,4,4,4,4,44,4,4,44,4,4,4,4,4,654,564,564,654,654,89,7,42,123,16,54,65,4165,4,564,564,1,321,65,46,132}
-
-local function potato()
-	local key = next(tbl)
-	while (true) do
-		if not key then break end
-		key = next(tbl, key)
-	end
-
-end
-
-
 
 do return end
 jit.getFileSymbols = fileGetSymbols
