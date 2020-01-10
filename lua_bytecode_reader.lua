@@ -235,8 +235,8 @@ local disassembly_cache = {}
 
 --fn is the function
 --fast to true if you don't want any documentation and register filtering gives about 20-50% perf boost
-local function disassemble_function(fn, fast)
-	if disassembly_cache[fn] then return disassembly_cache[fn] end
+local function disassemble_function(fn, fast, kill_cache)
+	if disassembly_cache[fn] and not kill_cache then return disassembly_cache[fn] end
 	assert(fn, "function expected")
 	local fnTableData = jit.util.funcinfo(fn)
 	assert(fnTableData.loc, "expected a Lua function, not a C one")
@@ -452,7 +452,6 @@ local function get_non_local_function_declarations(fn, recursive)
 				elseif nextIns.OP_CODE == INST.TSETS then
 					fName = data.consts[-nextIns.C - 1]
 					-- starting to loop back to fetch the parent table(s)
-					assert((pos - 1) > 0, "Error in instructions, expected TGETS or GGET but found nothing")
 					local modifier = -1
 					local previousIns = data.instructions[pos + modifier]
 					local endOfFunctionDeclaration = false
@@ -508,7 +507,7 @@ local function get_non_local_function_declarations(fn, recursive)
 				local func = data.consts[-curIns.D - 1]
 
 				if jit.util.funcinfo(func).children == true then
-					for _, subFunctionDeclaration in ipairs(get_non_local_function_declarations(funcnon_local_, true)) do
+					for _, subFunctionDeclaration in ipairs(get_non_local_function_declarations(func, true)) do
 						table.insert(symbols, subFunctionDeclaration)
 					end
 				end
@@ -551,7 +550,6 @@ local function get_non_local_function_call(fn, recursive)
 				elseif prevIns.OP_CODE == INST.TGETS then
 					fName = data.consts[-prevIns.C - 1]
 					-- starting to loop back to fetch the parent table(s)
-					assert((pos - 1) > 0, "Error in instructions, expected TGETS or GGET but found nothing")
 					local modifier = -2 -- we're already looking behind the current instruction being CALL
 					local previousIns = data.instructions[pos + modifier]
 					local endOfFunctionDeclaration = false
