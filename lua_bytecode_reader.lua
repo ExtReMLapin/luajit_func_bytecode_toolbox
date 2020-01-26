@@ -717,75 +717,60 @@ end
 
 jit.getFileSymbols = fileGetSymbols
 
-if RELEASE then
-	local commands = {
-		["--symbols"] = function()
-			if #arg == 1 then
-				local tbl = fileGetSymbols(arg[1], true, true)
 
-				for k, v in pairs(tbl) do
-					print(v.name, v._start .. ":" .. v._end)
-				end
 
-				return
-			end
 
-			local i = 1
-			local max = #arg
+local timeStarted = SysTime()
 
-			while (i <= max) do
-				local tbl = fileGetSymbols(arg[i], true)
+loadfile = function(path)
+	local code = file.Read(path, "BASE_PATH")
 
-				for k, v in pairs(tbl) do
-					print(arg[i], v.name, v._start .. ":" .. v._end)
-				end
-
-				i = i + 1
-			end
-		end,
-		["--localizable-funcs"] = function()
-			local tbl = findLocalizableFunctions(arg)
-
-			if next(tbl) == nil then
-				print("Good job :D, no issue found !")
-			else
-				for k, v in pairs(tbl) do
-					print(v.file, k, v._start)
-				end
-			end
-		end
-	}
-
-	while ((#arg ~= 0) and not commands[arg[1]]) do
-		table.remove(arg, 1)
-	end
-
-	if (#arg == 0) then
-		print("usage : lua_toolbox [command] [file(s)] ")
-		print("\tCommands : ")
-
-		for k, v in pairs(commands) do
-			print("\t\t" .. k)
-		end
-	else
-		assert(#arg > 1, "Missing file(s)")
-		local command = arg[1]
-		table.remove(arg, 1)
-		commands[command]()
-	end
-else
-	return {
-			functions = {
-				disassemble_function = disassemble_function,
-				has_JIT_Instruction = hasJITInstruction,
-				get_JIT_Level = JITLevel,
-				get_non_local_function_declarations = get_non_local_function_declarations,
-				get_non_local_function_call = get_non_local_function_call
-			},
-			files = {
-				fileGetSymbols = fileGetSymbols,
-				fileGetGlobalCalls = fileGetGlobalCalls,
-				findLocalizableFunctions = findLocalizableFunctions
-			}
-		}
+	return CompileString(code, path, true)
 end
+
+local files_list = {}
+local getAllLuaFiles
+
+getAllLuaFiles = function(path)
+	local files, folders = file.Find(path .. "*", "BASE_PATH")
+
+	for k, v in ipairs(files or {}) do
+		if not string.EndsWith(v, ".lua") then continue end
+		table.insert(files_list, path .. v)
+	end
+
+	for k, v in ipairs(folders or {}) do
+		if path == "garrysmod/" and v == "cache" then continue end
+		getAllLuaFiles(path .. v .. "/")
+	end
+end
+
+getAllLuaFiles("")
+
+
+local outTable = {}
+local i = 1
+local max = #files_list
+
+
+
+while (i <= max) do
+	local tbl = fileGetSymbols(files_list[i], true)
+
+	for k, v in pairs(tbl) do
+		table.insert(outTable, {
+			file = files_list[i],
+			fnName = v.name,
+			lines = v._start .. ":" .. v._end
+		})
+	end
+
+	i = i + 1
+end
+
+
+print("Symbols generation took : " .. SysTime() - timeStarted .. "s")
+timeStarted = SysTime()
+local json = util.TableToJSON(outTable, true)
+file.Write("wiki_symbols.txt", json)
+print("Writing to wiki_symbols.txt took : " .. SysTime() - timeStarted .. "s")
